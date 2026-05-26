@@ -1,0 +1,20 @@
+Projeto: Remnant Squad - Alpha
+
+Link do GitHub:
+[cole aqui o link do repositório]
+
+Link do deploy Web:
+[cole aqui o link do itch.io ou GitHub Pages]
+
+Integrantes:
+- Fábio Barros Ribeiro
+
+Descrição da entrega:
+Esta versão Alpha tem como objetivo validar a mecânica principal proposta no GDD: um jogo 2D Run & Gun com movimentação lateral, pulo, tiro, dash, combate contra inimigos, interação de resgate de POW e progressão básica de fase. O foco desta entrega não é a arte final, mas demonstrar que a mecânica central é funcional e viável para desenvolvimento futuro.
+
+Controles:
+- A/D ou Setas: movimentação
+- Espaço ou W: pulo
+- F: tiro
+- Shift: dash
+- E: resgatar POW
