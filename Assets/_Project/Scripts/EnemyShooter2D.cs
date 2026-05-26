@@ -9,10 +9,13 @@ public class EnemyShooter2D : MonoBehaviour
 
     private Transform player;
     private float cooldownTimer;
+    private float shootingFeedbackTimer;
+
+    public bool IsShooting { get { return shootingFeedbackTimer > 0f; } }
 
     private void Start()
     {
-        PlayerController2D foundPlayer = FindObjectOfType<PlayerController2D>();
+        PlayerController2D foundPlayer = FindAnyObjectByType<PlayerController2D>();
         if (foundPlayer != null) player = foundPlayer.transform;
     }
 
@@ -21,6 +24,7 @@ public class EnemyShooter2D : MonoBehaviour
         if (player == null || enemyProjectilePrefab == null || firePoint == null) return;
 
         if (cooldownTimer > 0) cooldownTimer -= Time.deltaTime;
+        if (shootingFeedbackTimer > 0) shootingFeedbackTimer -= Time.deltaTime;
 
         float distance = Vector2.Distance(transform.position, player.position);
         if (distance <= range && cooldownTimer <= 0)
@@ -31,6 +35,7 @@ public class EnemyShooter2D : MonoBehaviour
                 projectile.SetDirection((player.position - firePoint.position).normalized);
 
             cooldownTimer = fireCooldown;
+            shootingFeedbackTimer = 0.2f;
         }
     }
 }

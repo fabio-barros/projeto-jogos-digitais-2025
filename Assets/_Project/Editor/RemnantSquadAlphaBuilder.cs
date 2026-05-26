@@ -1,6 +1,7 @@
 #if UNITY_EDITOR
 using System.IO;
 using UnityEditor;
+using UnityEditor.Animations;
 using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -12,6 +13,7 @@ public static class RemnantSquadAlphaBuilder
     private const string GeneratedPath = BasePath + "/Generated";
     private const string PrefabsPath = BasePath + "/Prefabs";
     private const string ScenesPath = BasePath + "/Scenes";
+    private const string AnimationsPath = BasePath + "/Animations";
 
     [MenuItem("Remnant Squad/Generate Alpha Scene")]
     public static void GenerateAlphaScene()
@@ -38,6 +40,8 @@ public static class RemnantSquadAlphaBuilder
         Sprite groundSprite = CreateColorSprite("Sprite_Ground", new Color(0.3f, 0.3f, 0.3f, 1f));
         Sprite projectileSprite = CreateColorSprite("Sprite_Projectile", new Color(1f, 0.95f, 0.2f, 1f));
         Sprite enemyProjectileSprite = CreateColorSprite("Sprite_Enemy_Projectile", new Color(1f, 0.2f, 0.1f, 1f));
+        Sprite bombSprite = CreateColorSprite("Sprite_Bomb", new Color(0.1f, 0.1f, 0.12f, 1f));
+        Sprite explosionSprite = CreateColorSprite("Sprite_Explosion", new Color(1f, 0.55f, 0.05f, 1f));
         Sprite powSprite = CreateColorSprite("Sprite_POW", new Color(1f, 0.85f, 0.15f, 1f));
         Sprite endSprite = CreateColorSprite("Sprite_EndTrigger", new Color(0.1f, 1f, 0.3f, 0.55f));
 
@@ -48,6 +52,8 @@ public static class RemnantSquadAlphaBuilder
 
         GameObject playerProjectilePrefab = CreatePlayerProjectilePrefab(projectileSprite);
         GameObject enemyProjectilePrefab = CreateEnemyProjectilePrefab(enemyProjectileSprite);
+        GameObject explosionPrefab = CreateExplosionPrefab(explosionSprite);
+        GameObject bombPrefab = CreateBombPrefab(bombSprite, explosionPrefab);
 
         CreateGround("Ground_Main", groundSprite, new Vector2(0f, -4f), new Vector2(24f, 1f));
         CreateGround("Platform_01", groundSprite, new Vector2(-2f, -2f), new Vector2(3f, 0.45f));
@@ -56,7 +62,7 @@ public static class RemnantSquadAlphaBuilder
         CreateGround("Border_Left", groundSprite, new Vector2(-11.8f, -2.4f), new Vector2(0.4f, 3f));
         CreateGround("Border_Right", groundSprite, new Vector2(11.8f, -2.4f), new Vector2(0.4f, 3f));
 
-        GameObject player = CreatePlayer(playerSprite, playerProjectilePrefab);
+        GameObject player = CreatePlayer(playerSprite, playerProjectilePrefab, bombPrefab);
 
         CreateEnemy("Keth_Grunt_01", enemySprite, enemyProjectilePrefab, new Vector2(-0.5f, -3.35f), 2, 100, false);
         CreateEnemy("Keth_Grunt_02", enemySprite, enemyProjectilePrefab, new Vector2(3.2f, -3.35f), 2, 100, true);
@@ -79,7 +85,7 @@ public static class RemnantSquadAlphaBuilder
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        const string successMessage = "Level_01_Alpha was generated successfully.\n\nOpen Assets/_Project/Scenes/Level_01_Alpha and press Play.\n\nControls:\nA/D = Move\nSpace/W = Jump\nF = Shoot\nLeft Shift = Dash\nE = Rescue POW";
+        const string successMessage = "Level_01_Alpha was generated successfully.\n\nOpen Assets/_Project/Scenes/Level_01_Alpha and press Play.\n\nControls:\nA/D or Left Stick = Move\nMouse, Arrow Keys, or Right Stick = Aim\nLeft Click, F, or X Button = Shoot\nSpace/W or A Button = Jump\nT or Y Button = Reload\nR or B Button = Bomb\nLeft Shift or LB = Dash\nE or RB = Rescue POW";
 
         if (showDialog)
             EditorUtility.DisplayDialog("Remnant Squad Alpha Created", successMessage, "OK");
@@ -93,6 +99,7 @@ public static class RemnantSquadAlphaBuilder
         CreateFolderIfMissing(BasePath, "Generated");
         CreateFolderIfMissing(BasePath, "Prefabs");
         CreateFolderIfMissing(BasePath, "Scenes");
+        CreateFolderIfMissing(BasePath, "Animations");
     }
 
     private static void CreateFolderIfMissing(string parent, string child)
@@ -225,7 +232,43 @@ public static class RemnantSquadAlphaBuilder
         return prefab;
     }
 
-    private static GameObject CreatePlayer(Sprite sprite, GameObject projectilePrefab)
+    private static GameObject CreateExplosionPrefab(Sprite sprite)
+    {
+        GameObject explosion = CreateBoxObject("ExplosionVisual", sprite, Vector2.zero, new Vector2(1.8f, 1.8f), "Projectile");
+        SpriteRenderer renderer = explosion.GetComponent<SpriteRenderer>();
+        renderer.sortingOrder = 8;
+
+        string path = PrefabsPath + "/ExplosionVisual.prefab";
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(explosion, path);
+        Object.DestroyImmediate(explosion);
+        return prefab;
+    }
+
+    private static GameObject CreateBombPrefab(Sprite sprite, GameObject explosionPrefab)
+    {
+        GameObject bomb = CreateBoxObject("PlayerBomb", sprite, Vector2.zero, new Vector2(0.32f, 0.32f), "Projectile");
+
+        Rigidbody2D rb = bomb.AddComponent<Rigidbody2D>();
+        rb.gravityScale = 2.2f;
+        rb.freezeRotation = false;
+
+        CircleCollider2D collider = bomb.AddComponent<CircleCollider2D>();
+        collider.radius = 0.5f;
+
+        BombProjectile2D script = bomb.AddComponent<BombProjectile2D>();
+        script.fuseTime = 1.1f;
+        script.explosionRadius = 1.8f;
+        script.damage = 3;
+        script.damageLayers = LayerMask.GetMask("Enemy");
+        script.explosionVisual = explosionPrefab;
+
+        string path = PrefabsPath + "/PlayerBomb.prefab";
+        GameObject prefab = PrefabUtility.SaveAsPrefabAsset(bomb, path);
+        Object.DestroyImmediate(bomb);
+        return prefab;
+    }
+
+    private static GameObject CreatePlayer(Sprite sprite, GameObject projectilePrefab, GameObject bombPrefab)
     {
         GameObject player = CreateBoxObject("Player_Volkov", sprite, new Vector2(-8.5f, -3.25f), new Vector2(0.85f, 1.25f), "Player");
 
@@ -243,6 +286,10 @@ public static class RemnantSquadAlphaBuilder
         firePoint.transform.SetParent(player.transform);
         firePoint.transform.localPosition = new Vector3(0.65f, 0.1f, 0f);
 
+        GameObject throwPoint = new GameObject("ThrowPoint");
+        throwPoint.transform.SetParent(player.transform);
+        throwPoint.transform.localPosition = new Vector3(0.45f, 0.25f, 0f);
+
         PlayerController2D controller = player.AddComponent<PlayerController2D>();
         controller.groundCheck = groundCheck.transform;
         controller.groundLayer = LayerMask.GetMask("Ground");
@@ -250,9 +297,20 @@ public static class RemnantSquadAlphaBuilder
         PlayerShooter2D shooter = player.AddComponent<PlayerShooter2D>();
         shooter.projectilePrefab = projectilePrefab;
         shooter.firePoint = firePoint.transform;
+        shooter.maxAmmo = 30;
+        shooter.reloadTime = 1.1f;
+
+        PlayerBombThrower2D bombThrower = player.AddComponent<PlayerBombThrower2D>();
+        bombThrower.bombPrefab = bombPrefab;
+        bombThrower.throwPoint = throwPoint.transform;
 
         PlayerHealth health = player.AddComponent<PlayerHealth>();
         health.maxHealth = 3;
+        health.maxLives = 3;
+
+        Animator animator = player.AddComponent<Animator>();
+        animator.runtimeAnimatorController = CreateAnimatorController("PlayerVolkov", new string[] { "Idle", "Run", "JumpFall", "Dash", "Shoot", "Hurt", "Death" });
+        player.AddComponent<PlayerAnimationDriver>();
 
         return player;
     }
@@ -275,6 +333,7 @@ public static class RemnantSquadAlphaBuilder
         Damageable damageable = enemy.AddComponent<Damageable>();
         damageable.maxHealth = health;
         damageable.scoreValue = score;
+        damageable.deathDelay = 0.45f;
 
         enemy.AddComponent<DamageOnContact>().damage = 1;
 
@@ -305,6 +364,12 @@ public static class RemnantSquadAlphaBuilder
             shooter.fireCooldown = scale.x > 1f ? 2.2f : 1.7f;
         }
 
+        Animator animator = enemy.AddComponent<Animator>();
+        animator.runtimeAnimatorController = CreateAnimatorController(scale.x > 1f ? "KethBrute" : "KethGrunt", new string[] { "Idle", "Walk", "Shoot", "Hurt", "Death" });
+
+        EnemyAnimationDriver animationDriver = enemy.AddComponent<EnemyAnimationDriver>();
+        animationDriver.isBrute = scale.x > 1f;
+
         return enemy;
     }
 
@@ -324,8 +389,14 @@ public static class RemnantSquadAlphaBuilder
         POWRescue rescue = pow.AddComponent<POWRescue>();
         rescue.scoreReward = 500;
         rescue.healReward = 1;
+        rescue.bombReward = 1;
+        rescue.ammoReward = 10;
         rescue.rescuePrompt = prompt;
         rescue.rescuedVisual = rescued;
+
+        Animator animator = pow.AddComponent<Animator>();
+        animator.runtimeAnimatorController = CreateAnimatorController("POW", new string[] { "CapturedIdle", "Celebrate", "RunAway" });
+        pow.AddComponent<POWAnimationDriver>();
 
         prompt.SetActive(false);
         rescued.SetActive(false);
@@ -349,9 +420,86 @@ public static class RemnantSquadAlphaBuilder
         return textObject;
     }
 
+    private static RuntimeAnimatorController CreateAnimatorController(string name, string[] stateNames)
+    {
+        string controllerPath = AnimationsPath + "/" + name + ".controller";
+        AnimatorController controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(controllerPath);
+
+        if (controller == null)
+            controller = AnimatorController.CreateAnimatorControllerAtPath(controllerPath);
+
+        EnsureAnimatorParameters(controller);
+
+        AnimatorStateMachine stateMachine = controller.layers[0].stateMachine;
+
+        for (int i = stateMachine.states.Length - 1; i >= 0; i--)
+            stateMachine.RemoveState(stateMachine.states[i].state);
+
+        for (int i = 0; i < stateNames.Length; i++)
+        {
+            AnimationClip clip = CreatePlaceholderClip(name + "_" + stateNames[i]);
+            AnimatorState state = stateMachine.AddState(stateNames[i], new Vector3(250f, i * 55f, 0f));
+            state.motion = clip;
+
+            if (i == 0)
+                stateMachine.defaultState = state;
+        }
+
+        return controller;
+    }
+
+    private static void EnsureAnimatorParameters(AnimatorController controller)
+    {
+        EnsureAnimatorParameter(controller, "Speed", AnimatorControllerParameterType.Float);
+        EnsureAnimatorParameter(controller, "VerticalSpeed", AnimatorControllerParameterType.Float);
+        EnsureAnimatorParameter(controller, "Grounded", AnimatorControllerParameterType.Bool);
+        EnsureAnimatorParameter(controller, "Dashing", AnimatorControllerParameterType.Bool);
+        EnsureAnimatorParameter(controller, "Shooting", AnimatorControllerParameterType.Bool);
+        EnsureAnimatorParameter(controller, "Throwing", AnimatorControllerParameterType.Bool);
+        EnsureAnimatorParameter(controller, "Hurt", AnimatorControllerParameterType.Bool);
+        EnsureAnimatorParameter(controller, "Dead", AnimatorControllerParameterType.Bool);
+        EnsureAnimatorParameter(controller, "AimX", AnimatorControllerParameterType.Float);
+        EnsureAnimatorParameter(controller, "AimY", AnimatorControllerParameterType.Float);
+        EnsureAnimatorParameter(controller, "Moving", AnimatorControllerParameterType.Bool);
+        EnsureAnimatorParameter(controller, "Brute", AnimatorControllerParameterType.Bool);
+        EnsureAnimatorParameter(controller, "DeathVariant", AnimatorControllerParameterType.Int);
+        EnsureAnimatorParameter(controller, "PlayerNearby", AnimatorControllerParameterType.Bool);
+        EnsureAnimatorParameter(controller, "Rescued", AnimatorControllerParameterType.Bool);
+        EnsureAnimatorParameter(controller, "Running", AnimatorControllerParameterType.Bool);
+    }
+
+    private static void EnsureAnimatorParameter(AnimatorController controller, string parameterName, AnimatorControllerParameterType parameterType)
+    {
+        AnimatorControllerParameter[] parameters = controller.parameters;
+        for (int i = 0; i < parameters.Length; i++)
+        {
+            if (parameters[i].name == parameterName)
+                return;
+        }
+
+        controller.AddParameter(parameterName, parameterType);
+    }
+
+    private static AnimationClip CreatePlaceholderClip(string name)
+    {
+        string clipPath = AnimationsPath + "/" + name + ".anim";
+        AnimationClip clip = AssetDatabase.LoadAssetAtPath<AnimationClip>(clipPath);
+
+        if (clip == null)
+        {
+            clip = new AnimationClip();
+            clip.frameRate = 8f;
+            AssetDatabase.CreateAsset(clip, clipPath);
+        }
+
+        EditorUtility.SetDirty(clip);
+        return clip;
+    }
+
     private static GameObject CreateHUD(PlayerHealth playerHealth)
     {
         GameObject canvasObject = new GameObject("Canvas_HUD");
+        canvasObject.transform.localScale = Vector3.one;
 
         Canvas canvas = canvasObject.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -364,9 +512,12 @@ public static class RemnantSquadAlphaBuilder
 
         Font font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
 
-        Text healthText = CreateUIText("HealthText", canvasObject.transform, "HP: 3/3", new Vector2(20f, -20f), TextAnchor.UpperLeft, 28, font);
-        Text scoreText = CreateUIText("ScoreText", canvasObject.transform, "Score: 0", new Vector2(-20f, -20f), TextAnchor.UpperRight, 28, font);
-        CreateUIText("ControlsText", canvasObject.transform, "A/D Move  |  Space/W Jump  |  F Shoot  |  Shift Dash  |  E Rescue POW", new Vector2(0f, 20f), TextAnchor.LowerCenter, 22, font);
+        Text scoreText = CreateUIText("ScoreText", canvasObject.transform, "Score: 0", new Vector2(20f, -16f), TextAnchor.UpperLeft, 24, font);
+        Text healthText = CreateUIText("HealthText", canvasObject.transform, "HP: 3/3", new Vector2(20f, -48f), TextAnchor.UpperLeft, 26, font);
+        Text livesText = CreateUIText("LivesText", canvasObject.transform, "Lives: 3/3", new Vector2(20f, -82f), TextAnchor.UpperLeft, 22, font);
+        Text ammoText = CreateUIText("AmmoText", canvasObject.transform, "Ammo: 30/30", new Vector2(230f, -48f), TextAnchor.UpperLeft, 22, font);
+        Text bombText = CreateUIText("BombText", canvasObject.transform, "Bombs: 3/3", new Vector2(230f, -82f), TextAnchor.UpperLeft, 22, font);
+        CreateUIText("ControlsText", canvasObject.transform, "A/D or LS Move | Mouse/Arrows/RS Aim | Click/F/X Shoot | Space/A Jump | T/Y Reload | R/B Bomb | Shift/LB Dash | E/RB Rescue", new Vector2(-20f, -16f), TextAnchor.UpperRight, 18, font);
 
         GameObject completePanel = new GameObject("AlphaCompletePanel");
         completePanel.transform.SetParent(canvasObject.transform);
@@ -391,7 +542,12 @@ public static class RemnantSquadAlphaBuilder
 
         SimpleHUD hud = canvasObject.AddComponent<SimpleHUD>();
         hud.playerHealth = playerHealth;
+        hud.playerShooter = playerHealth.GetComponent<PlayerShooter2D>();
+        hud.playerBombThrower = playerHealth.GetComponent<PlayerBombThrower2D>();
         hud.healthText = healthText;
+        hud.livesText = livesText;
+        hud.ammoText = ammoText;
+        hud.bombText = bombText;
         hud.scoreText = scoreText;
 
         return completePanel;
@@ -416,7 +572,7 @@ public static class RemnantSquadAlphaBuilder
             rect.anchorMin = new Vector2(1f, 1f);
             rect.anchorMax = new Vector2(1f, 1f);
             rect.pivot = new Vector2(1f, 1f);
-            rect.sizeDelta = new Vector2(500f, 80f);
+            rect.sizeDelta = new Vector2(900f, 80f);
         }
         else if (alignment == TextAnchor.LowerCenter)
         {

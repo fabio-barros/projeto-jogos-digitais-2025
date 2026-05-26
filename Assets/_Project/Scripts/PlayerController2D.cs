@@ -22,6 +22,7 @@ public class PlayerController2D : MonoBehaviour
     private float originalGravityScale;
     private Vector3 originalScale;
     private int facingDirection = 1;
+    private PlayerHealth playerHealth;
 
     public int FacingDirection { get { return facingDirection; } }
     public Vector2 AimDirection { get { return aimDirection; } }
@@ -33,14 +34,21 @@ public class PlayerController2D : MonoBehaviour
     private void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
+        playerHealth = GetComponent<PlayerHealth>();
         originalGravityScale = rb.gravityScale;
         originalScale = transform.localScale;
     }
 
     private void Update()
     {
-        horizontal = Input.GetAxisRaw("Horizontal");
-        UpdateAimDirection();
+        if (playerHealth != null && !playerHealth.CanAct)
+        {
+            horizontal = 0f;
+            return;
+        }
+
+        horizontal = RemnantInput.MoveHorizontal();
+        aimDirection = RemnantInput.AimDirection(facingDirection, transform.position);
 
         if (horizontal > 0)
         {
@@ -56,13 +64,13 @@ public class PlayerController2D : MonoBehaviour
         if (groundCheck != null)
             isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
 
-        if ((Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.W)) && isGrounded && !isDashing)
+        if (RemnantInput.JumpDown() && isGrounded && !isDashing)
             rb.linearVelocity = new Vector2(rb.linearVelocity.x, jumpForce);
 
         if (dashCooldownTimer > 0)
             dashCooldownTimer -= Time.deltaTime;
 
-        if (Input.GetKeyDown(KeyCode.LeftShift) && dashCooldownTimer <= 0 && !isDashing)
+        if (RemnantInput.DashDown() && dashCooldownTimer <= 0 && !isDashing)
             StartDash();
 
         if (isDashing)
@@ -74,6 +82,12 @@ public class PlayerController2D : MonoBehaviour
 
     private void FixedUpdate()
     {
+        if (playerHealth != null && !playerHealth.CanAct)
+        {
+            rb.linearVelocity = Vector2.zero;
+            return;
+        }
+
         if (isDashing)
         {
             rb.linearVelocity = new Vector2(facingDirection * dashSpeed, 0);
@@ -81,21 +95,6 @@ public class PlayerController2D : MonoBehaviour
         }
 
         rb.linearVelocity = new Vector2(horizontal * moveSpeed, rb.linearVelocity.y);
-    }
-
-    private void UpdateAimDirection()
-    {
-        Vector2 rawAim = Vector2.zero;
-
-        if (Input.GetKey(KeyCode.RightArrow)) rawAim.x += 1f;
-        if (Input.GetKey(KeyCode.LeftArrow)) rawAim.x -= 1f;
-        if (Input.GetKey(KeyCode.UpArrow)) rawAim.y += 1f;
-        if (Input.GetKey(KeyCode.DownArrow)) rawAim.y -= 1f;
-
-        if (rawAim.sqrMagnitude > 0.01f)
-            aimDirection = rawAim.normalized;
-        else
-            aimDirection = new Vector2(facingDirection, 0f);
     }
 
     private void StartDash()
@@ -109,6 +108,13 @@ public class PlayerController2D : MonoBehaviour
     private void EndDash()
     {
         isDashing = false;
+        rb.gravityScale = originalGravityScale;
+    }
+
+    private void OnPlayerRespawned()
+    {
+        isDashing = false;
+        dashTimer = 0f;
         rb.gravityScale = originalGravityScale;
     }
 
