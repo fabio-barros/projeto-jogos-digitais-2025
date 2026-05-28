@@ -19,6 +19,19 @@ public static class RemnantInput
         return keyboard;
     }
 
+    public static float MoveVertical()
+    {
+        float keyboard = 0f;
+        if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) keyboard += 1f;
+        if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow)) keyboard -= 1f;
+
+        float stick = GetAxis("MoveVertical");
+        if (Mathf.Abs(stick) > DeadZone)
+            return stick;
+
+        return keyboard;
+    }
+
     public static Vector2 AimDirection(int facingDirection, Vector3 origin)
     {
         Vector2 keyboardAim = Vector2.zero;
@@ -72,6 +85,25 @@ public static class RemnantInput
     {
         return Input.GetKeyDown(KeyCode.T)
             || Input.GetKeyDown(KeyCode.JoystickButton3);
+    }
+
+    public static bool CrouchHeld()
+    {
+        return Input.GetKey(KeyCode.S)
+            || Input.GetKey(KeyCode.DownArrow);
+    }
+
+    public static bool MeleeDown()
+    {
+        return Input.GetKeyDown(KeyCode.C)
+            || Input.GetKeyDown(KeyCode.JoystickButton6);
+    }
+
+    public static bool RestartDown()
+    {
+        return Input.GetKeyDown(KeyCode.Return)
+            || Input.GetKeyDown(KeyCode.KeypadEnter)
+            || Input.GetKeyDown(KeyCode.JoystickButton7);
     }
 
     public static bool InteractDown()

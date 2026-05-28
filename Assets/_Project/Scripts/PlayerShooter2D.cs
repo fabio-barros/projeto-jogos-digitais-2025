@@ -15,11 +15,13 @@ public class PlayerShooter2D : MonoBehaviour
     private float cooldownTimer;
     private float shootFeedbackTimer;
     private float reloadTimer;
+    private Vector2 currentShootDirection = Vector2.right;
 
     public bool IsShooting { get { return shootFeedbackTimer > 0f; } }
     public int CurrentAmmo { get { return currentAmmo; } }
     public int MaxAmmo { get { return maxAmmo; } }
     public bool IsReloading { get { return reloadTimer > 0f; } }
+    public Vector2 CurrentShootDirection { get { return currentShootDirection; } }
 
     private void Awake()
     {
@@ -34,6 +36,23 @@ public class PlayerShooter2D : MonoBehaviour
         if (shootFeedbackTimer > 0) shootFeedbackTimer -= Time.deltaTime;
 
         if (playerHealth != null && !playerHealth.CanAct) return;
+
+        bool shootHeld = RemnantInput.ShootHeld();
+        if (shootHeld && controller != null)
+        {
+            currentShootDirection = GetShootDirection();
+
+            if (RemnantInput.CrouchHeld() && controller.IsGrounded)
+                controller.FaceDirection(currentShootDirection.x >= 0f ? 1 : -1);
+            else if (Mathf.Abs(controller.HorizontalInput) > 0.05f)
+                controller.FaceDirection(controller.HorizontalInput > 0f ? 1 : -1);
+            else
+                controller.FaceAimDirection();
+        }
+        else if (controller != null)
+        {
+            currentShootDirection = controller.AimDirection;
+        }
 
         UpdateFirePointPosition();
 
@@ -50,7 +69,7 @@ public class PlayerShooter2D : MonoBehaviour
         if (currentAmmo <= 0 && !IsReloading)
             StartReload();
 
-        if (RemnantInput.ShootHeld() && cooldownTimer <= 0 && currentAmmo > 0 && !IsReloading)
+        if (shootHeld && cooldownTimer <= 0 && currentAmmo > 0 && !IsReloading)
         {
             Shoot();
             cooldownTimer = fireCooldown;
@@ -68,7 +87,7 @@ public class PlayerShooter2D : MonoBehaviour
 
         GameObject projectileObject = Instantiate(projectilePrefab, firePoint.position, Quaternion.identity);
         Projectile2D projectile = projectileObject.GetComponent<Projectile2D>();
-        if (projectile != null) projectile.SetDirection(controller.AimDirection);
+        if (projectile != null) projectile.SetDirection(currentShootDirection);
 
         currentAmmo--;
         shootFeedbackTimer = 0.12f;
@@ -84,6 +103,29 @@ public class PlayerShooter2D : MonoBehaviour
         if (firePoint == null || controller == null) return;
 
         Vector2 aim = controller.AimDirection;
-        firePoint.localPosition = new Vector3(aim.x * firePointDistance, 0.1f + aim.y * firePointDistance, 0f);
+        if (RemnantInput.ShootHeld())
+            aim = currentShootDirection;
+
+        float baseHeight = RemnantInput.CrouchHeld() && controller.IsGrounded ? -0.15f : 0.1f;
+        firePoint.localPosition = new Vector3(aim.x * firePointDistance * controller.FacingDirection, baseHeight + aim.y * firePointDistance, 0f);
+    }
+
+    private Vector2 GetShootDirection()
+    {
+        if (controller == null)
+            return Vector2.right;
+
+        if (RemnantInput.CrouchHeld() && controller.IsGrounded)
+        {
+            if (Mathf.Abs(controller.AimDirection.x) > 0.2f)
+                return new Vector2(controller.AimDirection.x > 0f ? 1f : -1f, 0f);
+
+            return new Vector2(controller.FacingDirection, 0f);
+        }
+
+        if (Mathf.Abs(controller.HorizontalInput) > 0.05f)
+            return new Vector2(controller.HorizontalInput > 0f ? 1f : -1f, 0f);
+
+        return controller.AimDirection;
     }
 }

@@ -6,36 +6,95 @@ public class EnemyShooter2D : MonoBehaviour
     public Transform firePoint;
     public float range = 8f;
     public float fireCooldown = 1.5f;
+    public float horizontalShotHeight = 0.25f;
+    public float verticalShotOffset = 0.25f;
+    public bool cardinalAimOnly = true;
+    public int burstCount = 1;
+    public float burstSpacing = 0.16f;
+    public float projectileScaleMultiplier = 1f;
 
     private Transform player;
     private float cooldownTimer;
     private float shootingFeedbackTimer;
+    private int burstShotsRemaining;
+    private float burstTimer;
+    private Vector2 burstDirection = Vector2.left;
+    private Damageable damageable;
 
     public bool IsShooting { get { return shootingFeedbackTimer > 0f; } }
 
     private void Start()
     {
+        damageable = GetComponent<Damageable>();
         PlayerController2D foundPlayer = FindAnyObjectByType<PlayerController2D>();
         if (foundPlayer != null) player = foundPlayer.transform;
     }
 
     private void Update()
     {
+        if (damageable != null && damageable.IsDead)
+            return;
+
         if (player == null || enemyProjectilePrefab == null || firePoint == null) return;
 
         if (cooldownTimer > 0) cooldownTimer -= Time.deltaTime;
         if (shootingFeedbackTimer > 0) shootingFeedbackTimer -= Time.deltaTime;
 
+        if (burstShotsRemaining > 0)
+        {
+            burstTimer -= Time.deltaTime;
+            if (burstTimer <= 0f)
+                FireBurstShot();
+
+            return;
+        }
+
         float distance = Vector2.Distance(transform.position, player.position);
         if (distance <= range && cooldownTimer <= 0)
         {
-            GameObject projectileObject = Instantiate(enemyProjectilePrefab, firePoint.position, Quaternion.identity);
-            EnemyProjectile2D projectile = projectileObject.GetComponent<EnemyProjectile2D>();
-            if (projectile != null)
-                projectile.SetDirection((player.position - firePoint.position).normalized);
-
+            burstDirection = GetAimDirection(player.position - transform.position);
+            UpdateFirePoint(burstDirection);
+            burstShotsRemaining = Mathf.Max(1, burstCount);
+            burstTimer = 0f;
             cooldownTimer = fireCooldown;
-            shootingFeedbackTimer = 0.2f;
         }
+    }
+
+    private void FireBurstShot()
+    {
+        UpdateFirePoint(burstDirection);
+
+        GameObject projectileObject = Instantiate(enemyProjectilePrefab, firePoint.position, Quaternion.identity);
+        projectileObject.transform.localScale *= projectileScaleMultiplier;
+
+        EnemyProjectile2D projectile = projectileObject.GetComponent<EnemyProjectile2D>();
+        if (projectile != null)
+            projectile.SetDirection(burstDirection);
+
+        burstShotsRemaining--;
+        burstTimer = burstSpacing;
+        shootingFeedbackTimer = 0.2f;
+    }
+
+    private Vector2 GetAimDirection(Vector2 toPlayer)
+    {
+        if (!cardinalAimOnly)
+            return toPlayer.sqrMagnitude > 0.01f ? toPlayer.normalized : Vector2.left;
+
+        if (Mathf.Abs(toPlayer.y) > Mathf.Abs(toPlayer.x) * 1.15f)
+            return toPlayer.y > 0f ? Vector2.up : Vector2.down;
+
+        return toPlayer.x >= 0f ? Vector2.right : Vector2.left;
+    }
+
+    private void UpdateFirePoint(Vector2 direction)
+    {
+        if (firePoint == null)
+            return;
+
+        if (Mathf.Abs(direction.x) > 0.5f)
+            firePoint.position = transform.position + new Vector3(direction.x * 0.62f, horizontalShotHeight, 0f);
+        else
+            firePoint.position = transform.position + new Vector3(0f, direction.y > 0f ? verticalShotOffset : -verticalShotOffset, 0f);
     }
 }

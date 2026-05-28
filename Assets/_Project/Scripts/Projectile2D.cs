@@ -2,10 +2,11 @@ using UnityEngine;
 
 public class Projectile2D : MonoBehaviour
 {
-    public float speed = 14f;
+    public float speed = 10f;
     public int damage = 1;
     public float lifetime = 2.5f;
     public LayerMask hitLayers;
+    public GameObject hitEffectPrefab;
 
     private Vector2 direction = Vector2.right;
 
@@ -38,12 +39,22 @@ public class Projectile2D : MonoBehaviour
         Damageable damageable = collision.GetComponent<Damageable>();
         if (damageable != null)
         {
-            damageable.TakeDamage(damage);
+            damageable.TakeDamage(damage, direction);
+            SpawnHitEffect();
             Destroy(gameObject);
             return;
         }
 
         if (((1 << collision.gameObject.layer) & hitLayers) != 0)
+        {
+            SpawnHitEffect();
             Destroy(gameObject);
+        }
+    }
+
+    private void SpawnHitEffect()
+    {
+        if (hitEffectPrefab != null)
+            Instantiate(hitEffectPrefab, transform.position, Quaternion.identity);
     }
 }

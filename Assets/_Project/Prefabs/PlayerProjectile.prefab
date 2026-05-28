@@ -29,7 +29,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.35, y: 0.18, z: 1}
+  m_LocalScale: {x: 0.55, y: 0.28, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -83,12 +83,12 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 7149961714259423218, guid: a68363f2be1e80444b0ff65a1b7ee6f9, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 8e5dffc40883c8b4da23d2d0224dd8d7, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 1, y: 1}
+  m_Size: {x: 0.32, y: 0.32}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -128,7 +128,7 @@ CircleCollider2D:
   m_CompositeOperation: 0
   m_CompositeOrder: 0
   m_Offset: {x: 0, y: 0}
-  m_Radius: 0.5
+  m_Radius: 0.16000001
 --- !u!114 &8787424087672536215
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -141,9 +141,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: b3b2c6b4e1163eb4f98480c8c8c656f9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Projectile2D
-  speed: 15
+  speed: 10
   damage: 1
   lifetime: 2.5
   hitLayers:
     serializedVersion: 2
     m_Bits: 256
+  hitEffectPrefab: {fileID: 1355271876140490555, guid: 7b4d3dd6c288a3c46afd5721e1911a3a, type: 3}

@@ -29,7 +29,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 0.28, y: 0.28, z: 1}
+  m_LocalScale: {x: 0.36, y: 0.18, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
@@ -128,7 +128,7 @@ CircleCollider2D:
   m_CompositeOperation: 0
   m_CompositeOrder: 0
   m_Offset: {x: 0, y: 0}
-  m_Radius: 0.50000006
+  m_Radius: 0.5
 --- !u!114 &3411973156461328322
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -141,9 +141,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c48fbb05084e16b4484a5851b86e82a6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyProjectile2D
-  speed: 7
+  speed: 6
   damage: 1
   lifetime: 3
   hitLayers:
     serializedVersion: 2
     m_Bits: 256
+  hitEffectPrefab: {fileID: 1355271876140490555, guid: 7b4d3dd6c288a3c46afd5721e1911a3a, type: 3}

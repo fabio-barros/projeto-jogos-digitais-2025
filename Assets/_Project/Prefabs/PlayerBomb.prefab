@@ -84,7 +84,7 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 4327264109202812351, guid: 9361e6de4b342f548b52cef07d2265c1, type: 3}
+  m_Sprite: {fileID: -6802723142719212733, guid: 960dd8314aa1a924a9733c210792217e, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -176,3 +176,6 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 1024
   explosionVisual: {fileID: 381249668967520276, guid: a034486d61b1214479888c4ff1a51c84, type: 3}
+  visibleColor: {r: 0.05, g: 1, b: 0.95, a: 1}
+  trailColor: {r: 1, g: 0.95, b: 0.1, a: 1}
+  trailTime: 0.45

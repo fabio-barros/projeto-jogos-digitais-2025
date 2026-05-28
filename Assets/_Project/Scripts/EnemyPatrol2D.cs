@@ -9,9 +9,18 @@ public class EnemyPatrol2D : MonoBehaviour
     public LayerMask groundLayer;
 
     private int direction = -1;
+    private Damageable damageable;
+
+    private void Awake()
+    {
+        damageable = GetComponent<Damageable>();
+    }
 
     private void Update()
     {
+        if (damageable != null && damageable.IsDead)
+            return;
+
         transform.Translate(Vector2.right * direction * moveSpeed * Time.deltaTime);
 
         if (groundCheck == null || wallCheck == null) return;

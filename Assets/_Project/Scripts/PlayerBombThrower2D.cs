@@ -8,16 +8,20 @@ public class PlayerBombThrower2D : MonoBehaviour
     public float throwForce = 9f;
     public float upwardBoost = 2.5f;
     public float throwCooldown = 0.5f;
+    public float throwPointDistance = 0.5f;
+    public float reloadTime = 1.25f;
 
     private PlayerController2D controller;
     private PlayerHealth playerHealth;
     private int currentBombs;
     private float cooldownTimer;
     private float throwFeedbackTimer;
+    private float reloadTimer;
 
     public int CurrentBombs { get { return currentBombs; } }
     public int MaxBombs { get { return maxBombs; } }
     public bool IsThrowing { get { return throwFeedbackTimer > 0f; } }
+    public bool IsReloading { get { return reloadTimer > 0f; } }
 
     private void Awake()
     {
@@ -33,18 +37,35 @@ public class PlayerBombThrower2D : MonoBehaviour
 
         if (playerHealth != null && !playerHealth.CanAct) return;
 
-        if (RemnantInput.BombDown() && cooldownTimer <= 0f && currentBombs > 0)
+        UpdateThrowPointPosition();
+
+        if (reloadTimer > 0f)
+        {
+            reloadTimer -= Time.deltaTime;
+            if (reloadTimer <= 0f)
+                currentBombs = maxBombs;
+        }
+
+        if (RemnantInput.ReloadDown() && currentBombs < maxBombs && !IsReloading)
+            StartReload();
+
+        if (RemnantInput.BombDown() && cooldownTimer <= 0f && currentBombs > 0 && !IsReloading)
             ThrowBomb();
     }
 
     public void RefillBombs(int amount)
     {
         currentBombs = Mathf.Min(currentBombs + amount, maxBombs);
+        if (currentBombs >= maxBombs)
+            reloadTimer = 0f;
     }
 
     private void ThrowBomb()
     {
         if (bombPrefab == null || throwPoint == null || controller == null) return;
+
+        controller.FaceAimDirection();
+        UpdateThrowPointPosition();
 
         Vector2 aim = controller.AimDirection;
         Vector3 spawnPosition = throwPoint.position + new Vector3(aim.x * 0.35f, aim.y * 0.2f, 0f);
@@ -57,5 +78,18 @@ public class PlayerBombThrower2D : MonoBehaviour
         currentBombs--;
         cooldownTimer = throwCooldown;
         throwFeedbackTimer = 0.2f;
+    }
+
+    private void StartReload()
+    {
+        reloadTimer = reloadTime;
+    }
+
+    private void UpdateThrowPointPosition()
+    {
+        if (throwPoint == null || controller == null) return;
+
+        Vector2 aim = controller.AimDirection;
+        throwPoint.localPosition = new Vector3(aim.x * throwPointDistance * controller.FacingDirection, 0.2f + aim.y * throwPointDistance, 0f);
     }
 }
