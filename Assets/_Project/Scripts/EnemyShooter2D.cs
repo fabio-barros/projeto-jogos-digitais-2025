@@ -12,6 +12,7 @@ public class EnemyShooter2D : MonoBehaviour
     public int burstCount = 1;
     public float burstSpacing = 0.16f;
     public float projectileScaleMultiplier = 1f;
+    public LayerMask obstacleLayers;
 
     private Transform player;
     private float cooldownTimer;
@@ -50,7 +51,7 @@ public class EnemyShooter2D : MonoBehaviour
         }
 
         float distance = Vector2.Distance(transform.position, player.position);
-        if (distance <= range && cooldownTimer <= 0)
+        if (distance <= range && cooldownTimer <= 0 && HasClearLineOfSight(player))
         {
             burstDirection = GetAimDirection(player.position - transform.position);
             UpdateFirePoint(burstDirection);
@@ -96,5 +97,24 @@ public class EnemyShooter2D : MonoBehaviour
             firePoint.position = transform.position + new Vector3(direction.x * 0.62f, horizontalShotHeight, 0f);
         else
             firePoint.position = transform.position + new Vector3(0f, direction.y > 0f ? verticalShotOffset : -verticalShotOffset, 0f);
+    }
+
+    public bool HasClearLineOfSight(Transform target)
+    {
+        if (target == null)
+            return false;
+
+        if (obstacleLayers.value == 0)
+            return true;
+
+        Vector2 origin = firePoint != null ? firePoint.position : transform.position;
+        Vector2 targetPoint = target.position;
+        Vector2 direction = targetPoint - origin;
+        float distance = direction.magnitude;
+        if (distance <= 0.01f)
+            return true;
+
+        RaycastHit2D hit = Physics2D.Raycast(origin, direction.normalized, distance, obstacleLayers);
+        return hit.collider == null;
     }
 }

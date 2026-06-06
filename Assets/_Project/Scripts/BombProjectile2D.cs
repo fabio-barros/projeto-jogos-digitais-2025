@@ -1,8 +1,11 @@
 using UnityEngine;
+using System;
 
 [RequireComponent(typeof(Rigidbody2D))]
 public class BombProjectile2D : MonoBehaviour
 {
+    public static event Action<Vector3, float, int> Exploded;
+
     public float fuseTime = 1.1f;
     public float explosionRadius = 1.8f;
     public int damage = 3;
@@ -78,6 +81,8 @@ public class BombProjectile2D : MonoBehaviour
             GameObject visual = Instantiate(explosionVisual, transform.position, Quaternion.identity);
             Destroy(visual, 0.35f);
         }
+
+        Exploded?.Invoke(transform.position, explosionRadius, damage);
 
         if (spriteRenderer != null)
             spriteRenderer.enabled = false;

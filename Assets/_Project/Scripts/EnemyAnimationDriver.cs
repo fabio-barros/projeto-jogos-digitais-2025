@@ -51,7 +51,7 @@ public class EnemyAnimationDriver : MonoBehaviour
             hurtTimer -= Time.deltaTime;
 
         bool dead = damageable != null && damageable.IsDead;
-        animator.SetBool(MovingHash, patrol != null && patrol.enabled && !dead);
+        animator.SetBool(MovingHash, patrol != null && patrol.enabled && patrol.IsMoving && !dead);
         animator.SetBool(ShootingHash, shooter != null && shooter.IsShooting);
         animator.SetBool(HurtHash, hurtTimer > 0f && !dead);
         animator.SetBool(DeadHash, dead);

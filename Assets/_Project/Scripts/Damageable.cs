@@ -12,7 +12,7 @@ public class Damageable : MonoBehaviour
     public GameObject deathEffectPrefab;
     public UnityEvent onDeath;
 
-    private int currentHealth;
+    private float currentHealth;
     private bool isDead;
     private float hitFlashTimer;
     private SpriteRenderer[] spriteRenderers;
@@ -20,7 +20,7 @@ public class Damageable : MonoBehaviour
     private Rigidbody2D rb;
 
     public event Action Died;
-    public int CurrentHealth { get { return currentHealth; } }
+    public int CurrentHealth { get { return Mathf.CeilToInt(currentHealth); } }
     public bool IsDead { get { return isDead; } }
 
     private void Awake()
@@ -43,14 +43,15 @@ public class Damageable : MonoBehaviour
             RestoreColors();
     }
 
-    public void TakeDamage(int amount)
+    public void TakeDamage(float amount)
     {
         TakeDamage(amount, Vector2.zero);
     }
 
-    public void TakeDamage(int amount, Vector2 hitDirection)
+    public void TakeDamage(float amount, Vector2 hitDirection)
     {
         if (isDead) return;
+        if (amount <= 0f) return;
 
         currentHealth -= amount;
         Flash();
