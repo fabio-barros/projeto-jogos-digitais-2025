@@ -50,11 +50,13 @@ public class EnemyShooter2D : MonoBehaviour
             return;
         }
 
+        Vector2 aimDirection = GetAimDirection(player.position - transform.position);
+        UpdateFirePoint(aimDirection);
+
         float distance = Vector2.Distance(transform.position, player.position);
         if (distance <= range && cooldownTimer <= 0 && HasClearLineOfSight(player))
         {
-            burstDirection = GetAimDirection(player.position - transform.position);
-            UpdateFirePoint(burstDirection);
+            burstDirection = aimDirection;
             burstShotsRemaining = Mathf.Max(1, burstCount);
             burstTimer = 0f;
             cooldownTimer = fireCooldown;
@@ -65,8 +67,8 @@ public class EnemyShooter2D : MonoBehaviour
     {
         UpdateFirePoint(burstDirection);
 
-        GameObject projectileObject = Instantiate(enemyProjectilePrefab, firePoint.position, Quaternion.identity);
-        projectileObject.transform.localScale *= projectileScaleMultiplier;
+        GameObject projectileObject = ObjectPool2D.Spawn(enemyProjectilePrefab, firePoint.position, Quaternion.identity);
+        projectileObject.transform.localScale = enemyProjectilePrefab.transform.localScale * projectileScaleMultiplier;
 
         EnemyProjectile2D projectile = projectileObject.GetComponent<EnemyProjectile2D>();
         if (projectile != null)
@@ -116,5 +118,15 @@ public class EnemyShooter2D : MonoBehaviour
 
         RaycastHit2D hit = Physics2D.Raycast(origin, direction.normalized, distance, obstacleLayers);
         return hit.collider == null;
+    }
+
+    private void OnDrawGizmos()
+    {
+        if (!GameplayDebugOverlay2D.DrawLineOfSight || player == null)
+            return;
+
+        Vector3 origin = firePoint != null ? firePoint.position : transform.position;
+        Gizmos.color = HasClearLineOfSight(player) ? Color.green : Color.red;
+        Gizmos.DrawLine(origin, player.position);
     }
 }

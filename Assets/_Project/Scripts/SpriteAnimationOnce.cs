@@ -15,11 +15,20 @@ public class SpriteAnimationOnce : MonoBehaviour
             targetRenderer = GetComponent<SpriteRenderer>();
     }
 
+    private void OnEnable()
+    {
+        timer = 0f;
+        frameIndex = 0;
+
+        if (targetRenderer != null && frames != null && frames.Length > 0)
+            targetRenderer.sprite = frames[0];
+    }
+
     private void Update()
     {
         if (targetRenderer == null || frames == null || frames.Length == 0)
         {
-            Destroy(gameObject);
+            ObjectPool2D.Despawn(gameObject);
             return;
         }
 
@@ -32,7 +41,7 @@ public class SpriteAnimationOnce : MonoBehaviour
 
         if (frameIndex >= frames.Length)
         {
-            Destroy(gameObject);
+            ObjectPool2D.Despawn(gameObject);
             return;
         }
 

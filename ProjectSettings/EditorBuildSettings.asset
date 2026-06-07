@@ -6,7 +6,7 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/_Project/Scenes/Level_01_Alpha.unity
-    guid: a00e0cd98b07610458e6d6e328930c48
+    path: Assets/Scenes/RunNGun_Level1_NeraGameplay.unity
+    guid: 31024d6c3fb29354c8e3f1ee28b1338d
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}

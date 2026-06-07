@@ -85,7 +85,7 @@ public class PlayerShooter2D : MonoBehaviour
     {
         if (projectilePrefab == null || firePoint == null || controller == null) return;
 
-        GameObject projectileObject = Instantiate(projectilePrefab, firePoint.position, Quaternion.identity);
+        GameObject projectileObject = ObjectPool2D.Spawn(projectilePrefab, firePoint.position, Quaternion.identity);
         Projectile2D projectile = projectileObject.GetComponent<Projectile2D>();
         if (projectile != null) projectile.SetDirection(currentShootDirection);
 

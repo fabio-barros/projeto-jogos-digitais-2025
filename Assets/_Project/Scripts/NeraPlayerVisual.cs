@@ -152,7 +152,7 @@ public class NeraPlayerVisual : MonoBehaviour
         else if (lookingUp)
             SetSprite(torsoRenderer, torsoLookUp);
         else if (state == "run")
-            SetSprite(torsoRenderer, torsoRun);
+            SetSprite(torsoRenderer, torsoIdle);
         else
             SetSprite(torsoRenderer, torsoIdle);
     }

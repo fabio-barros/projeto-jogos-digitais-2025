@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEditor.Animations;
@@ -13,8 +14,26 @@ public static class RemnantSquadAlphaBuilder
     private const string GeneratedPath = BasePath + "/Generated";
     private const string PrefabsPath = BasePath + "/Prefabs";
     private const string ScenesPath = BasePath + "/Scenes";
+    private const string PlayableScenesPath = "Assets/Scenes";
     private const string AnimationsPath = BasePath + "/Animations";
+    private const string DataPath = BasePath + "/Data";
     private const string NeraPath = BasePath + "/Art/Nera/sprites";
+    private const string GenericRunGunPath = BasePath + "/External/GenericRunNGun/Extracted";
+    private const string GenericRunGunGeneratedPath = GeneratedPath + "/GenericRunNGun";
+    private static readonly Dictionary<string, Sprite> colorSpriteCache = new Dictionary<string, Sprite>();
+    private static Sprite grgTerrainTopSprite;
+    private static Sprite grgTerrainFillSprite;
+    private static Sprite grgTerrainSideSprite;
+    private static Sprite grgPlatformTopSprite;
+    private static Sprite grgCoverSprite;
+    private static Sprite grgOutdoorRuinPanelSprite;
+    private static Sprite grgOutdoorRailingSprite;
+    private static Sprite grgOutdoorLampSprite;
+    private static Sprite grgOutdoorConeSprite;
+    private static Sprite grgOutdoorSignSprite;
+    private static Sprite grgOutdoorSupportSprite;
+    private static Sprite grgOutdoorPipeSprite;
+    private static Sprite grgOutdoorDoorSprite;
 
     [MenuItem("Remnant Squad/Generate Alpha Scene")]
     public static void GenerateAlphaScene()
@@ -29,6 +48,7 @@ public static class RemnantSquadAlphaBuilder
 
     private static void GenerateAlphaScene(bool showDialog)
     {
+        colorSpriteCache.Clear();
         EnsureFolders();
         EnsureLayers();
 
@@ -64,6 +84,8 @@ public static class RemnantSquadAlphaBuilder
         Sprite hoverVehicleSprite = CreateColorSprite("Sprite_Player_HoverVehicle", new Color(0.82f, 0.92f, 1f, 1f));
         Sprite companionSprite = CreateColorSprite("Sprite_Companion", new Color(0.95f, 0.9f, 0.72f, 1f));
 
+        ApplyGenericRunGunArtPack(ref enemySprite, ref bruteSprite, ref groundSprite, ref coverSprite, ref explosionSprite);
+
         GameObject gameManager = new GameObject("GameManager");
         gameManager.AddComponent<GameManager>();
 
@@ -76,6 +98,8 @@ public static class RemnantSquadAlphaBuilder
         GameObject enemyDeathPrefab = CreateEnemyDeathPrefab(explosionSprite);
         GameObject bombPrefab = CreateBombPrefab(bombSprite, explosionPrefab);
 
+        CreateRuntimeTools(playerProjectilePrefab, enemyProjectilePrefab, bulletHitPrefab, enemyDeathPrefab, explosionPrefab);
+
         GameObject player = CreatePlayer(playerSprite, playerProjectilePrefab, bombPrefab);
 
         GameObject completePanel = CreateHUD(player.GetComponent<PlayerHealth>());
@@ -83,8 +107,11 @@ public static class RemnantSquadAlphaBuilder
 
         Camera.main.GetComponent<CameraFollow2D>().target = player.transform;
 
-        string levelOneScenePath = ScenesPath + "/Level_01_Alpha.unity";
+        string levelOneScenePath = PlayableScenesPath + "/Level_01_Alpha.unity";
+        string projectSceneMirrorPath = ScenesPath + "/Level_01_Alpha.unity";
         EditorSceneManager.SaveScene(scene, levelOneScenePath);
+        File.Copy(levelOneScenePath, projectSceneMirrorPath, true);
+        AssetDatabase.ImportAsset(projectSceneMirrorPath, ImportAssetOptions.ForceUpdate);
 
         EditorBuildSettings.scenes = new EditorBuildSettingsScene[]
         {
@@ -94,7 +121,7 @@ public static class RemnantSquadAlphaBuilder
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
-        const string successMessage = "Vertical-slice Level 1 was generated successfully.\n\nOpen Assets/_Project/Scenes/Level_01_Alpha and press Play.\n\nRoute:\nTraining Outpost > First Contact Road > Broken Bridge > POW Camp > Acid Trench > Brute Gate > Lake Descent > Vehicle Depot > Radar Runway > Anti-Air Tower > Breached Hangar > Extract Elevator > Comms Shaft > Pipeline Switchbacks > Carrier Spine > Rail Yard Rush > Cliffside AA Batteries > Final Extraction Lift.\n\nControls:\nA/D or Left Stick = Move\nW/S or Left Stick = Swim/vehicle vertical\nMouse, Arrow Keys, or Right Stick = Aim\nLeft Click, F, or X Button = Shoot\nSpace/W or A Button = Jump\nT or Y Button = Reload\nR or B Button = Bomb\nLeft Shift or LB = Dash\nE or RB = Rescue / Ride";
+        const string successMessage = "Vertical-slice Level 1 was generated successfully.\n\nOpen Assets/Scenes/Level_01_Alpha and press Play.\n\nRoute:\nTraining Outpost > First Contact Road > Broken Bridge > POW Camp > Acid Trench > Brute Gate > Lake Descent > Vehicle Depot > Radar Runway > Anti-Air Tower > Breached Hangar > Extract Elevator > Comms Shaft > Pipeline Switchbacks > Carrier Spine > Rail Yard Rush > Cliffside AA Batteries > Final Extraction Lift.\n\nControls:\nA/D or Left Stick = Move\nW/S or Left Stick = Swim/vehicle vertical\nMouse, Arrow Keys, or Right Stick = Aim\nLeft Click, F, or X Button = Shoot\nSpace/W or A Button = Jump\nT or Y Button = Reload\nR or B Button = Bomb\nLeft Shift or LB = Dash\nE or RB = Rescue / Ride";
 
         if (showDialog)
             EditorUtility.DisplayDialog("Remnant Squad Alpha Created", successMessage, "OK");
@@ -108,7 +135,9 @@ public static class RemnantSquadAlphaBuilder
         CreateFolderIfMissing(BasePath, "Generated");
         CreateFolderIfMissing(BasePath, "Prefabs");
         CreateFolderIfMissing(BasePath, "Scenes");
+        CreateFolderIfMissing("Assets", "Scenes");
         CreateFolderIfMissing(BasePath, "Animations");
+        CreateFolderIfMissing(BasePath, "Data");
     }
 
     private static void CreateFolderIfMissing(string parent, string child)
@@ -128,6 +157,10 @@ public static class RemnantSquadAlphaBuilder
         EnsureLayer("Pickup");
         EnsureLayer("Hazard");
         EnsureLayer("Water");
+
+        int enemyLayer = LayerMask.NameToLayer("Enemy");
+        if (enemyLayer >= 0)
+            Physics2D.IgnoreLayerCollision(enemyLayer, enemyLayer, true);
     }
 
     private static void EnsureLayer(string layerName)
@@ -155,9 +188,127 @@ public static class RemnantSquadAlphaBuilder
         Debug.LogWarning("No empty Unity layer slot found for: " + layerName);
     }
 
+    private static void ApplyGenericRunGunArtPack(ref Sprite enemySprite, ref Sprite bruteSprite, ref Sprite groundSprite, ref Sprite coverSprite, ref Sprite explosionSprite)
+    {
+        if (!AssetDatabase.IsValidFolder(GenericRunGunPath) && !Directory.Exists(GenericRunGunPath))
+            return;
+
+        Sprite importedEnemy = CreateCroppedSpriteAsset("GRG_Keth_Grunt_AR_Frame", GenericRunGunPath + "/Enemies/ARMob.png", new RectInt(0, 0, 32, 38), 32f);
+        if (importedEnemy != null)
+            enemySprite = importedEnemy;
+
+        Sprite importedBrute = CreateCroppedSpriteAsset("GRG_Keth_Brute_RPG_Frame", GenericRunGunPath + "/Enemies/RPGmob.png", new RectInt(0, 0, 44, 44), 32f);
+        if (importedBrute != null)
+            bruteSprite = importedBrute;
+
+        string outdoorTilesPath = GenericRunGunPath + "/Assets_area_2/tileset/tiles_out.png";
+        string subwayTilesPath = GenericRunGunPath + "/Assets_area_1/Tileset/Subway_tiles.png";
+        grgTerrainTopSprite = CreateCroppedSpriteAsset("GRG_Outdoor_Terrain_Top_Edge", outdoorTilesPath, new RectInt(16, 0, 16, 16), 16f);
+        grgTerrainFillSprite = CreateCroppedSpriteAsset("GRG_Outdoor_Brick_Wall_Fill", outdoorTilesPath, new RectInt(32, 304, 16, 16), 16f);
+        grgTerrainSideSprite = CreateCroppedSpriteAsset("GRG_Outdoor_Terrain_Side_Edge", outdoorTilesPath, new RectInt(0, 32, 16, 16), 16f);
+        grgPlatformTopSprite = CreateCroppedSpriteAsset("GRG_Outdoor_Platform_Top_Edge", outdoorTilesPath, new RectInt(80, 32, 16, 16), 16f);
+        grgCoverSprite = CreateCroppedSpriteAsset("GRG_Outdoor_Crate_Cover", outdoorTilesPath, new RectInt(112, 48, 32, 32), 16f);
+        grgOutdoorRuinPanelSprite = CreateCroppedSpriteAsset("GRG_Outdoor_Ruin_Wall_Panel", outdoorTilesPath, new RectInt(0, 272, 112, 128), 16f);
+        grgOutdoorRailingSprite = CreateCroppedSpriteAsset("GRG_Outdoor_Railing", outdoorTilesPath, new RectInt(0, 64, 64, 48), 16f);
+        grgOutdoorLampSprite = CreateCroppedSpriteAsset("GRG_Outdoor_Lamp_Post", outdoorTilesPath, new RectInt(160, 64, 32, 96), 16f);
+        grgOutdoorConeSprite = CreateCroppedSpriteAsset("GRG_Outdoor_Cone", outdoorTilesPath, new RectInt(96, 144, 16, 32), 16f);
+        grgOutdoorSignSprite = CreateCroppedSpriteAsset("GRG_Outdoor_Warning_Sign", outdoorTilesPath, new RectInt(176, 144, 32, 48), 16f);
+        grgOutdoorSupportSprite = CreateCroppedSpriteAsset("GRG_Outdoor_Service_Support", outdoorTilesPath, new RectInt(64, 0, 48, 96), 16f);
+        grgOutdoorPipeSprite = CreateCroppedSpriteAsset("GRG_Outdoor_Pipe_Duct", outdoorTilesPath, new RectInt(0, 48, 80, 16), 16f);
+        grgOutdoorDoorSprite = CreateCroppedSpriteAsset("GRG_Outdoor_Service_Door", outdoorTilesPath, new RectInt(0, 144, 32, 96), 16f);
+
+        if (grgTerrainTopSprite == null)
+            grgTerrainTopSprite = CreateCroppedSpriteAsset("GRG_Terrain_Top_Edge", subwayTilesPath, new RectInt(112, 160, 16, 16), 16f);
+
+        if (grgTerrainFillSprite == null)
+            grgTerrainFillSprite = CreateCroppedSpriteAsset("GRG_Terrain_Wall_Fill", subwayTilesPath, new RectInt(192, 304, 16, 16), 16f);
+
+        if (grgTerrainSideSprite == null)
+            grgTerrainSideSprite = CreateCroppedSpriteAsset("GRG_Terrain_Side_Edge", subwayTilesPath, new RectInt(96, 160, 16, 16), 16f);
+
+        if (grgPlatformTopSprite == null)
+            grgPlatformTopSprite = CreateCroppedSpriteAsset("GRG_Platform_Top_Edge", subwayTilesPath, new RectInt(144, 160, 16, 16), 16f);
+
+        if (grgCoverSprite == null)
+            grgCoverSprite = CreateCroppedSpriteAsset("GRG_Crate_Cover", subwayTilesPath, new RectInt(272, 16, 32, 32), 16f);
+
+        Sprite importedGround = grgTerrainTopSprite != null ? grgTerrainTopSprite : CreateCroppedSpriteAsset("GRG_Subway_Ground_Tile", GenericRunGunPath + "/Assets_area_1/Tileset/Subway_tiles.png", new RectInt(160, 176, 16, 16), 16f);
+        if (importedGround != null)
+            groundSprite = importedGround;
+
+        Sprite importedCover = grgCoverSprite != null ? grgCoverSprite : CreateCroppedSpriteAsset("GRG_Outdoor_Platform_Tile", GenericRunGunPath + "/Assets_area_2/tileset/tiles_out.png", new RectInt(96, 0, 16, 16), 16f);
+        if (importedCover != null)
+            coverSprite = importedCover;
+
+        Sprite importedExplosion = CreateCroppedSpriteAsset("GRG_Explosion_Mid_Frame", GenericRunGunPath + "/Enemies/Explosion_Particle.png", new RectInt(96, 0, 32, 32), 32f);
+        if (importedExplosion != null)
+            explosionSprite = importedExplosion;
+    }
+
+    private static Sprite CreateCroppedSpriteAsset(string name, string sourcePath, RectInt topLeftRect, float pixelsPerUnit)
+    {
+        if (!File.Exists(sourcePath))
+            return null;
+
+        ConfigureTextureImporter(sourcePath, pixelsPerUnit, true);
+        Texture2D source = AssetDatabase.LoadAssetAtPath<Texture2D>(sourcePath);
+        if (source == null)
+            return null;
+
+        if (topLeftRect.x < 0 || topLeftRect.y < 0 || topLeftRect.xMax > source.width || topLeftRect.yMax > source.height)
+            return null;
+
+        if (!AssetDatabase.IsValidFolder(GenericRunGunGeneratedPath))
+            CreateFolderIfMissing(GeneratedPath, "GenericRunNGun");
+
+        string texturePath = GenericRunGunGeneratedPath + "/" + name + ".png";
+        int readY = source.height - topLeftRect.y - topLeftRect.height;
+        Texture2D cropped = new Texture2D(topLeftRect.width, topLeftRect.height, TextureFormat.RGBA32, false);
+        cropped.SetPixels(source.GetPixels(topLeftRect.x, readY, topLeftRect.width, topLeftRect.height));
+        cropped.Apply();
+        File.WriteAllBytes(texturePath, cropped.EncodeToPNG());
+        Object.DestroyImmediate(cropped);
+
+        AssetDatabase.ImportAsset(texturePath, ImportAssetOptions.ForceUpdate);
+        ConfigureTextureImporter(texturePath, pixelsPerUnit, false);
+        return AssetDatabase.LoadAssetAtPath<Sprite>(texturePath);
+    }
+
+    private static Sprite LoadGenericRunGunSprite(string path, float pixelsPerUnit)
+    {
+        if (!File.Exists(path))
+            return null;
+
+        ConfigureTextureImporter(path, pixelsPerUnit, false);
+        return AssetDatabase.LoadAssetAtPath<Sprite>(path);
+    }
+
+    private static void ConfigureTextureImporter(string path, float pixelsPerUnit, bool readable)
+    {
+        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+        TextureImporter importer = AssetImporter.GetAtPath(path) as TextureImporter;
+        if (importer == null)
+            return;
+
+        importer.textureType = TextureImporterType.Sprite;
+        importer.spriteImportMode = SpriteImportMode.Single;
+        importer.spritePixelsPerUnit = pixelsPerUnit;
+        importer.spritePivot = new Vector2(0.5f, 0.5f);
+        importer.filterMode = FilterMode.Point;
+        importer.textureCompression = TextureImporterCompression.Uncompressed;
+        importer.mipmapEnabled = false;
+        importer.alphaIsTransparency = true;
+        importer.isReadable = readable;
+        importer.SaveAndReimport();
+    }
+
     private static Sprite CreateColorSprite(string name, Color color)
     {
+        if (colorSpriteCache.TryGetValue(name, out Sprite cachedSprite) && cachedSprite != null)
+            return cachedSprite;
+
         string texturePath = GeneratedPath + "/" + name + ".png";
+        bool createdTexture = false;
 
         if (!File.Exists(texturePath))
         {
@@ -172,6 +323,17 @@ public static class RemnantSquadAlphaBuilder
 
             File.WriteAllBytes(texturePath, texture.EncodeToPNG());
             Object.DestroyImmediate(texture);
+            createdTexture = true;
+        }
+
+        if (!createdTexture)
+        {
+            Sprite existingSprite = AssetDatabase.LoadAssetAtPath<Sprite>(texturePath);
+            if (existingSprite != null)
+            {
+                colorSpriteCache[name] = existingSprite;
+                return existingSprite;
+            }
         }
 
         AssetDatabase.ImportAsset(texturePath);
@@ -186,7 +348,9 @@ public static class RemnantSquadAlphaBuilder
             importer.SaveAndReimport();
         }
 
-        return AssetDatabase.LoadAssetAtPath<Sprite>(texturePath);
+        Sprite sprite = AssetDatabase.LoadAssetAtPath<Sprite>(texturePath);
+        colorSpriteCache[name] = sprite;
+        return sprite;
     }
 
     private static Sprite LoadSprite(string path)
@@ -297,6 +461,7 @@ public static class RemnantSquadAlphaBuilder
     private static GameObject CreateGround(string name, Sprite sprite, Vector2 position, Vector2 scale)
     {
         GameObject ground = CreateBoxObject(name, sprite, position, scale, "Ground");
+        ApplyTiledColliderVisual(ground, sprite, scale, Color.white, 1, false);
         ground.AddComponent<BoxCollider2D>().size = Vector2.one;
         return ground;
     }
@@ -304,33 +469,36 @@ public static class RemnantSquadAlphaBuilder
     private static GameObject CreateGround(string name, Sprite sprite, Vector2 position, Vector2 scale, Color color)
     {
         GameObject ground = CreateGround(name, sprite, position, scale);
-        SpriteRenderer renderer = ground.GetComponent<SpriteRenderer>();
-        if (renderer != null)
-            renderer.color = color;
+        Color visualColor = IsGenericRunGunSprite(sprite) ? Color.white : color;
+        ApplyTerrainColor(ground, visualColor);
 
         return ground;
     }
 
+    private static GameObject CreateLowCover(string name, Sprite sprite, Vector2 position, Vector2 scale, Color color)
+    {
+        GameObject cover = CreateBoxObject(name, sprite, position, scale, "Ground");
+        Color visualColor = IsGenericRunGunSprite(sprite) ? Color.white : color;
+        ApplyCoverVisual(cover, sprite, scale, visualColor, 3);
+
+        BoxCollider2D collider = cover.AddComponent<BoxCollider2D>();
+        collider.size = Vector2.one;
+        return cover;
+    }
+
     private static GameObject CreateTerrainFace(string name, Sprite sprite, Vector2 position, Vector2 scale, Color color)
     {
-        scale.x = Mathf.Max(scale.x, 1f);
-        GameObject face = CreateBoxObject(name, sprite, position, scale, "Ground");
-        SpriteRenderer renderer = face.GetComponent<SpriteRenderer>();
-        if (renderer != null)
-        {
-            renderer.color = color;
-            renderer.sortingOrder = -1;
-        }
-
+        GameObject face = CreateBoxObject(name, sprite, position, scale, "Default");
+        Color visualColor = IsGenericRunGunSprite(sprite) ? Color.white : color;
+        ApplyTiledColliderVisual(face, sprite, scale, visualColor, 0, false);
         return face;
     }
 
     private static GameObject CreateOneWayPlatform(string name, Sprite sprite, Vector2 position, Vector2 scale, Color color)
     {
         GameObject platform = CreateBoxObject(name, sprite, position, scale, "Ground");
-        SpriteRenderer renderer = platform.GetComponent<SpriteRenderer>();
-        if (renderer != null)
-            renderer.color = color;
+        Color visualColor = IsGenericRunGunSprite(sprite) ? Color.white : color;
+        ApplyTiledColliderVisual(platform, sprite, scale, visualColor, 2, true);
 
         BoxCollider2D collider = platform.AddComponent<BoxCollider2D>();
         collider.size = Vector2.one;
@@ -340,7 +508,190 @@ public static class RemnantSquadAlphaBuilder
         effector.useOneWay = true;
         effector.useOneWayGrouping = true;
         effector.surfaceArc = 160f;
+        effector.useSideFriction = false;
+        effector.useSideBounce = false;
+        effector.sideArc = 1f;
         return platform;
+    }
+
+    private static void ApplyTerrainColor(GameObject terrainObject, Color color)
+    {
+        SpriteRenderer[] renderers = terrainObject.GetComponentsInChildren<SpriteRenderer>();
+        if (renderers.Length > 0)
+        {
+            for (int i = 0; i < renderers.Length; i++)
+                renderers[i].color = color;
+            return;
+        }
+    }
+
+    private static void ApplyTiledColliderVisual(GameObject terrainObject, Sprite sprite, Vector2 scale, Color color, int sortingOrder, bool topOnly)
+    {
+        if (sprite == null)
+            return;
+
+        SpriteRenderer stretchedRenderer = terrainObject.GetComponent<SpriteRenderer>();
+        if (stretchedRenderer != null)
+            stretchedRenderer.enabled = false;
+
+        int columns = Mathf.Max(1, Mathf.CeilToInt(scale.x));
+        int rows = Mathf.Max(1, Mathf.CeilToInt(scale.y));
+        Sprite topSprite = topOnly && grgPlatformTopSprite != null ? grgPlatformTopSprite : grgTerrainTopSprite != null ? grgTerrainTopSprite : sprite;
+        Sprite fillSprite = grgTerrainFillSprite != null ? grgTerrainFillSprite : sprite;
+        Sprite sideSprite = grgTerrainSideSprite != null ? grgTerrainSideSprite : fillSprite;
+
+        GameObject tileRoot = new GameObject("SpriteTileGrid");
+        tileRoot.transform.SetParent(terrainObject.transform, false);
+
+        if (!topOnly)
+            CreateFilledSpriteTiles(tileRoot.transform, "WallFill", fillSprite, color, sortingOrder, columns, rows);
+
+        CreateSpriteTileRow(tileRoot.transform, "TopEdge", topSprite, color, sortingOrder + 1, columns, rows - 1);
+
+        if (!topOnly && columns > 1)
+        {
+            CreateSpriteTileColumn(tileRoot.transform, "LeftEdge", sideSprite, color, sortingOrder + 2, 0, columns, rows);
+            CreateSpriteTileColumn(tileRoot.transform, "RightEdge", sideSprite, color, sortingOrder + 2, columns - 1, columns, rows);
+        }
+    }
+
+    private static void ApplyCoverVisual(GameObject coverObject, Sprite sprite, Vector2 scale, Color color, int sortingOrder)
+    {
+        if (sprite == null)
+            return;
+
+        SpriteRenderer stretchedRenderer = coverObject.GetComponent<SpriteRenderer>();
+        if (stretchedRenderer != null)
+            stretchedRenderer.enabled = false;
+
+        Sprite coverSprite = grgCoverSprite != null ? grgCoverSprite : sprite;
+        GameObject visual = new GameObject("CoverVisual");
+        visual.transform.SetParent(coverObject.transform, false);
+
+        Vector2 targetSize = new Vector2(Mathf.Max(scale.x, 1.1f), Mathf.Max(scale.y, 0.95f));
+        Vector2 spriteSize = coverSprite.bounds.size;
+        visual.transform.localPosition = new Vector3(0f, (targetSize.y - scale.y) * 0.5f / Mathf.Max(0.01f, scale.y), 0f);
+        visual.transform.localScale = new Vector3(
+            targetSize.x / Mathf.Max(0.01f, spriteSize.x * scale.x),
+            targetSize.y / Mathf.Max(0.01f, spriteSize.y * scale.y),
+            1f);
+
+        SpriteRenderer renderer = visual.AddComponent<SpriteRenderer>();
+        renderer.sprite = coverSprite;
+        renderer.color = color;
+        renderer.sortingOrder = sortingOrder;
+    }
+
+    private static void CreateFilledSpriteTiles(Transform parent, string name, Sprite sprite, Color color, int sortingOrder, int columns, int rows)
+    {
+        GameObject layer = CreateSpriteTileLayer(parent, name);
+        for (int x = 0; x < columns; x++)
+        {
+            for (int y = 0; y < rows; y++)
+                CreateSpriteTile(layer.transform, sprite, color, sortingOrder, x, y, columns, rows);
+        }
+    }
+
+    private static void CreateSpriteTileRow(Transform parent, string name, Sprite sprite, Color color, int sortingOrder, int columns, int row)
+    {
+        GameObject layer = CreateSpriteTileLayer(parent, name);
+        for (int x = 0; x < columns; x++)
+            CreateSpriteTile(layer.transform, sprite, color, sortingOrder, x, row, columns, row + 1);
+    }
+
+    private static void CreateSpriteTileColumn(Transform parent, string name, Sprite sprite, Color color, int sortingOrder, int column, int columns, int rows)
+    {
+        GameObject layer = CreateSpriteTileLayer(parent, name);
+        for (int y = 0; y < rows; y++)
+            CreateSpriteTile(layer.transform, sprite, color, sortingOrder, column, y, columns, rows);
+    }
+
+    private static GameObject CreateSpriteTileLayer(Transform parent, string name)
+    {
+        GameObject layer = new GameObject(name);
+        layer.transform.SetParent(parent, false);
+        return layer;
+    }
+
+    private static void CreateSpriteTile(Transform parent, Sprite sprite, Color color, int sortingOrder, int x, int y, int columns, int rows)
+    {
+        if (sprite == null)
+            return;
+
+        GameObject tile = new GameObject(sprite.name + "_Tile");
+        tile.transform.SetParent(parent, false);
+        tile.transform.localPosition = new Vector3(
+            -0.5f + (x + 0.5f) / Mathf.Max(1, columns),
+            -0.5f + (y + 0.5f) / Mathf.Max(1, rows),
+            0f);
+        tile.transform.localScale = new Vector3(
+            1f / Mathf.Max(0.01f, columns * sprite.bounds.size.x),
+            1f / Mathf.Max(0.01f, rows * sprite.bounds.size.y),
+            1f);
+
+        SpriteRenderer renderer = tile.AddComponent<SpriteRenderer>();
+        renderer.sprite = sprite;
+        renderer.color = color;
+        renderer.sortingOrder = sortingOrder;
+    }
+
+    private static void CreateEnemyWaypointGraph()
+    {
+        GameObject graphObject = new GameObject("Enemy_AStar_WaypointGraph");
+        graphObject.AddComponent<EnemyWaypointGraph2D>();
+
+        Vector2[] positions = new Vector2[]
+        {
+            new Vector2(-9f, -3.35f), new Vector2(-4.2f, -3.35f), new Vector2(-4.2f, -1.8f), new Vector2(-0.3f, -0.9f),
+            new Vector2(2f, -3.35f), new Vector2(6.6f, -1.45f), new Vector2(8.5f, -3.35f), new Vector2(11.5f, -3.35f),
+            new Vector2(12.8f, -2.2f), new Vector2(15.6f, -1.4f), new Vector2(18.3f, -0.7f), new Vector2(20.5f, -3.35f),
+            new Vector2(26f, -3.35f), new Vector2(27.2f, -1.1f), new Vector2(32f, -3.35f), new Vector2(33.5f, -2.2f),
+            new Vector2(36f, -1.5f), new Vector2(38.6f, -2.2f), new Vector2(41f, -3.35f), new Vector2(50f, -3.35f),
+            new Vector2(50.2f, -1f), new Vector2(60f, -3.35f), new Vector2(67.5f, -4.6f), new Vector2(73f, -6.05f),
+            new Vector2(78.5f, -7.95f), new Vector2(84f, -7.6f), new Vector2(89f, -7.6f), new Vector2(94f, -7.6f),
+            new Vector2(99f, -7.95f), new Vector2(83.5f, -13.55f), new Vector2(89.1f, -10.25f), new Vector2(92.5f, -13.55f),
+            new Vector2(96.1f, -12.75f), new Vector2(98.3f, -11.55f), new Vector2(100.5f, -10.35f), new Vector2(102.8f, -9.15f),
+            new Vector2(105.2f, -7.95f), new Vector2(108.4f, -6.05f), new Vector2(111.1f, -4.65f), new Vector2(113.5f, -3.35f),
+            new Vector2(113.5f, -1.3f), new Vector2(125.5f, -1.45f), new Vector2(127f, -3.35f), new Vector2(140.8f, -1.45f),
+            new Vector2(143.5f, -3.35f), new Vector2(147.2f, -0.25f), new Vector2(156f, -1.55f), new Vector2(159.5f, -3.35f),
+            new Vector2(164f, -0.6f), new Vector2(177.2f, -1.1f), new Vector2(177.5f, -3.35f), new Vector2(194f, -3.35f),
+            new Vector2(202.5f, -0.05f), new Vector2(203.4f, -2.85f), new Vector2(206.9f, -2.2f), new Vector2(210.4f, -1.5f),
+            new Vector2(211f, 1.05f), new Vector2(218.2f, -1.45f), new Vector2(231f, -1.45f), new Vector2(231f, -0.05f),
+            new Vector2(240.6f, -2.25f), new Vector2(245.6f, -2.95f), new Vector2(253.5f, -1.3f), new Vector2(254f, -2.9f),
+            new Vector2(262.5f, -2.25f), new Vector2(267.5f, -1.45f), new Vector2(279.5f, -1.45f), new Vector2(279.5f, 0.2f),
+            new Vector2(290.5f, -0.35f), new Vector2(291.8f, -2.3f), new Vector2(297.9f, -2.95f), new Vector2(304.4f, -2.15f),
+            new Vector2(316f, -1.45f), new Vector2(319.5f, -3.35f), new Vector2(337.5f, -1.45f), new Vector2(342f, -3.35f),
+            new Vector2(356.3f, -2.5f), new Vector2(359.4f, -0.15f), new Vector2(361.8f, -1.7f), new Vector2(366.6f, 1.05f),
+            new Vector2(367.5f, -0.95f), new Vector2(376f, -0.95f), new Vector2(377f, 0.85f)
+        };
+
+        EnemyWaypointNode2D[] nodes = new EnemyWaypointNode2D[positions.Length];
+        for (int i = 0; i < positions.Length; i++)
+        {
+            GameObject nodeObject = new GameObject("AI_Node_" + i.ToString("000"));
+            nodeObject.transform.SetParent(graphObject.transform);
+            nodeObject.transform.position = positions[i];
+            nodes[i] = nodeObject.AddComponent<EnemyWaypointNode2D>();
+            nodes[i].jumpHint = i > 0 && positions[i].y > positions[Mathf.Max(0, i - 1)].y + 0.7f;
+            nodes[i].dropHint = i > 0 && positions[i].y < positions[Mathf.Max(0, i - 1)].y - 0.7f;
+        }
+
+        for (int i = 0; i < nodes.Length; i++)
+        {
+            List<EnemyWaypointNode2D> neighbors = new List<EnemyWaypointNode2D>();
+            for (int j = 0; j < nodes.Length; j++)
+            {
+                if (i == j)
+                    continue;
+
+                float dx = Mathf.Abs(positions[i].x - positions[j].x);
+                float dy = Mathf.Abs(positions[i].y - positions[j].y);
+                if (dx <= 8.25f && dy <= 3.05f)
+                    neighbors.Add(nodes[j]);
+            }
+
+            nodes[i].neighbors = neighbors.ToArray();
+        }
     }
 
     private static GameObject CreateDestructibleBridge(string name, Sprite sprite, Vector2 position, Vector2 scale, Color color)
@@ -419,7 +770,9 @@ public static class RemnantSquadAlphaBuilder
         mover.localMoveOffset = new Vector2(2.6f, 0f);
         mover.speed = 0.55f;
 
-        CreateWorldText(name + "_Label", "GROUND VEHICLE", new Vector3(position.x, position.y + 1.65f, 0f), 0.2f).transform.SetParent(vehicle.transform);
+        GameObject label = CreateWorldText(name + "_Label", "GROUND VEHICLE", new Vector3(position.x, position.y + 1.65f, 0f), 0.2f);
+        label.transform.SetParent(vehicle.transform);
+        label.SetActive(false);
         return vehicle;
     }
 
@@ -437,7 +790,9 @@ public static class RemnantSquadAlphaBuilder
         mover.localMoveOffset = new Vector2(-7f, 0.45f);
         mover.speed = 0.38f;
 
-        CreateWorldText(name + "_Label", "PLANE FLYBY", new Vector3(position.x, position.y + 0.95f, 0f), 0.2f).transform.SetParent(plane.transform);
+        GameObject label = CreateWorldText(name + "_Label", "PLANE FLYBY", new Vector3(position.x, position.y + 0.95f, 0f), 0.2f);
+        label.transform.SetParent(plane.transform);
+        label.SetActive(false);
         return plane;
     }
 
@@ -481,7 +836,7 @@ public static class RemnantSquadAlphaBuilder
         Color platformColor = new Color(0.72f, 0.66f, 0.28f, 1f);
         Color coverColor = new Color(0.48f, 0.62f, 0.68f, 1f);
 
-        CreateWorldText("Level_Title", "LEVEL 1 - ASHLINE OUTPOST", new Vector3(-7.4f, 0.4f, 0f), 0.32f);
+        CreateWorldText("Level_Title", "LEVEL 1 - ASHLINE OUTPOST", new Vector3(-7.4f, 0.4f, 0f), 0.32f).SetActive(false);
         CreateDesignLabel("L1_A_Training_Label", "L1-A TRAINING OUTPOST\nmovement, aim, first safety space", new Vector3(-4.8f, -1.05f, 0f));
         CreateDesignLabel("L1_B_FirstContact_Label", "L1-B FIRST CONTACT ROAD\nalien grunts, clear front lane", new Vector3(4.6f, -0.85f, 0f));
         CreateDesignLabel("L1_C_Bridge_Label", "L1-C BROKEN BRIDGE\njump route, high/low firing", new Vector3(15.2f, -0.8f, 0f));
@@ -501,6 +856,9 @@ public static class RemnantSquadAlphaBuilder
         CreateDesignLabel("L1_Q_CliffBatteries_Label", "L1-Q CLIFFSIDE AA BATTERIES\nuphill pressure, upper gunners", new Vector3(362f, 0.75f, 0f));
         CreateDesignLabel("L1_R_FinalLift_Label", "L1-R FINAL EXTRACTION LIFT\nlast readable holdout", new Vector3(377f, 0.75f, 0f));
 
+        CreateGenericRunGunBackdrops();
+        CreateEnvironmentArtPass(scenerySprite, coverSprite, waterSprite);
+
         CreateSceneryBlock("Backdrop_Tower_Start", scenerySprite, new Vector2(-8.5f, -1f), new Vector2(1.3f, 5.5f));
         CreateSceneryBlock("Backdrop_Outpost", scenerySprite, new Vector2(4f, -0.6f), new Vector2(4.8f, 3.4f));
         CreateSceneryBlock("Backdrop_Camp", scenerySprite, new Vector2(24.8f, -0.45f), new Vector2(5.5f, 3.8f));
@@ -514,47 +872,47 @@ public static class RemnantSquadAlphaBuilder
 
         CreateGround("Border_Left", groundSprite, new Vector2(-12.1f, -1.8f), new Vector2(0.45f, 5f), floorColor);
         CreateGround("LandingZone_Floor", groundSprite, new Vector2(-5.2f, -4f), new Vector2(13.8f, 1f), floorColor);
-        CreateGround("Training_Platform_Low", groundSprite, new Vector2(-4.2f, -2.35f), new Vector2(3.2f, 0.45f), platformColor);
-        CreateGround("Training_Platform_High", groundSprite, new Vector2(-0.3f, -1.45f), new Vector2(2.4f, 0.45f), platformColor);
-        CreateGround("Training_Cover", coverSprite, new Vector2(-1.9f, -3.25f), new Vector2(0.55f, 1.5f), coverColor);
+        CreateOneWayPlatform("Training_Platform_Low", groundSprite, new Vector2(-4.2f, -2.35f), new Vector2(3.2f, 0.45f), platformColor);
+        CreateOneWayPlatform("Training_Platform_High", groundSprite, new Vector2(-0.3f, -1.45f), new Vector2(2.4f, 0.45f), platformColor);
+        CreateLowCover("Training_LowCover", coverSprite, new Vector2(-1.9f, -3.65f), new Vector2(1.25f, 0.55f), coverColor);
 
         CreateGround("Outpost_Floor", groundSprite, new Vector2(4.6f, -4f), new Vector2(7.2f, 1f), floorColor);
-        CreateGround("Outpost_Cover_Left", coverSprite, new Vector2(3.4f, -3.25f), new Vector2(0.55f, 1.4f), coverColor);
-        CreateGround("Outpost_Platform", groundSprite, new Vector2(6.6f, -2.1f), new Vector2(3.1f, 0.45f), platformColor);
+        CreateLowCover("Outpost_LowCover_Left", coverSprite, new Vector2(3.4f, -3.65f), new Vector2(1.35f, 0.55f), coverColor);
+        CreateOneWayPlatform("Outpost_Platform", groundSprite, new Vector2(6.6f, -2.1f), new Vector2(3.1f, 0.45f), platformColor);
 
         CreateGround("Connector_Outpost_To_Bridge", groundSprite, new Vector2(8.45f, -4f), new Vector2(0.6f, 1f), floorColor);
         CreateGround("Bridge_Left_Ledge", groundSprite, new Vector2(10.7f, -4f), new Vector2(4.1f, 1f), floorColor);
         CreateGround("Bridge_Main_Floor_Connector", groundSprite, new Vector2(15.15f, -4f), new Vector2(4.95f, 1f), floorColor);
-        CreateGround("Bridge_Step_01", groundSprite, new Vector2(12.8f, -2.85f), new Vector2(2.2f, 0.45f), platformColor);
-        CreateGround("Bridge_Step_02", groundSprite, new Vector2(15.6f, -2.05f), new Vector2(2.2f, 0.45f), platformColor);
-        CreateGround("Bridge_Step_03", groundSprite, new Vector2(18.3f, -1.35f), new Vector2(2.5f, 0.45f), platformColor);
+        CreateOneWayPlatform("Bridge_Step_01", groundSprite, new Vector2(12.8f, -2.85f), new Vector2(2.2f, 0.45f), platformColor);
+        CreateOneWayPlatform("Bridge_Step_02", groundSprite, new Vector2(15.6f, -2.05f), new Vector2(2.2f, 0.45f), platformColor);
+        CreateOneWayPlatform("Bridge_Step_03", groundSprite, new Vector2(18.3f, -1.35f), new Vector2(2.5f, 0.45f), platformColor);
         CreateGround("Bridge_Right_Ledge", groundSprite, new Vector2(19.8f, -4f), new Vector2(4.4f, 1f), floorColor);
 
         CreateGround("POW_Camp_Floor", groundSprite, new Vector2(26.1f, -4f), new Vector2(11.8f, 1f), floorColor);
-        CreateGround("POW_Camp_CageBase", coverSprite, new Vector2(23.5f, -3.15f), new Vector2(1.2f, 1.6f), coverColor);
-        CreateGround("POW_Camp_Cover_Right", coverSprite, new Vector2(29.3f, -3.25f), new Vector2(0.55f, 1.45f), coverColor);
-        CreateGround("POW_Camp_Roof", groundSprite, new Vector2(27.2f, -1.75f), new Vector2(4.4f, 0.45f), platformColor);
+        CreateLowCover("POW_Camp_CageBase", coverSprite, new Vector2(23.5f, -3.62f), new Vector2(1.7f, 0.62f), coverColor);
+        CreateLowCover("POW_Camp_LowCover_Right", coverSprite, new Vector2(29.3f, -3.65f), new Vector2(1.25f, 0.55f), coverColor);
+        CreateOneWayPlatform("POW_Camp_Roof", groundSprite, new Vector2(27.2f, -1.75f), new Vector2(4.4f, 0.45f), platformColor);
 
         CreateGround("Acid_Left_Ledge", groundSprite, new Vector2(32f, -4f), new Vector2(3.4f, 1f), floorColor);
         CreateHazard("Acid_Trench", hazardSprite, new Vector2(35.5f, -3.75f), new Vector2(5.9f, 0.55f));
-        CreateGround("Acid_Trench_ServiceDeck", groundSprite, new Vector2(36.35f, -3.05f), new Vector2(5.4f, 0.34f), platformColor);
-        CreateGround("Acid_Platform_01", groundSprite, new Vector2(33.5f, -2.75f), new Vector2(1.75f, 0.42f), platformColor);
-        CreateGround("Acid_Platform_02", groundSprite, new Vector2(36f, -2f), new Vector2(1.8f, 0.42f), platformColor);
-        CreateGround("Acid_Platform_03", groundSprite, new Vector2(38.6f, -2.75f), new Vector2(1.75f, 0.42f), platformColor);
+        CreateOneWayPlatform("Acid_Trench_ServiceDeck", groundSprite, new Vector2(36.35f, -3.05f), new Vector2(5.4f, 0.34f), platformColor);
+        CreateOneWayPlatform("Acid_Platform_01", groundSprite, new Vector2(33.5f, -2.75f), new Vector2(1.75f, 0.42f), platformColor);
+        CreateOneWayPlatform("Acid_Platform_02", groundSprite, new Vector2(36f, -2f), new Vector2(1.8f, 0.42f), platformColor);
+        CreateOneWayPlatform("Acid_Platform_03", groundSprite, new Vector2(38.6f, -2.75f), new Vector2(1.75f, 0.42f), platformColor);
         CreateGround("Acid_Right_Ledge", groundSprite, new Vector2(40.8f, -4f), new Vector2(3.7f, 1f), floorColor);
 
         CreateGround("Arena_Approach_Floor", groundSprite, new Vector2(44.4f, -4f), new Vector2(4.8f, 1f), floorColor);
         CreateGround("Arena_Floor", groundSprite, new Vector2(50.4f, -4f), new Vector2(9.4f, 1f), floorColor);
-        CreateGround("Arena_Cover_Left", coverSprite, new Vector2(47.6f, -3.15f), new Vector2(0.65f, 1.65f), coverColor);
-        CreateGround("Arena_Cover_Right", coverSprite, new Vector2(53.2f, -3.15f), new Vector2(0.65f, 1.65f), coverColor);
-        CreateGround("Arena_Upper_Walkway", groundSprite, new Vector2(50.2f, -1.65f), new Vector2(4.6f, 0.45f), platformColor);
+        CreateLowCover("Arena_LowCover_Left", coverSprite, new Vector2(47.6f, -3.62f), new Vector2(1.45f, 0.62f), coverColor);
+        CreateLowCover("Arena_LowCover_Right", coverSprite, new Vector2(53.2f, -3.62f), new Vector2(1.45f, 0.62f), coverColor);
+        CreateOneWayPlatform("Arena_Upper_Walkway", groundSprite, new Vector2(50.2f, -1.65f), new Vector2(4.6f, 0.45f), platformColor);
 
         CreateGround("Connector_Arena_To_Extraction", groundSprite, new Vector2(55.2f, -4f), new Vector2(0.75f, 1f), floorColor);
         CreateGround("Extraction_Floor", groundSprite, new Vector2(60f, -4f), new Vector2(9.4f, 1f), floorColor);
         CreateGround("Downhill_Step_01", groundSprite, new Vector2(67.55f, -5.2f), new Vector2(5.9f, 0.8f), floorColor);
         CreateGround("Downhill_Step_02", groundSprite, new Vector2(73.05f, -6.7f), new Vector2(5.7f, 0.8f), floorColor);
         CreateGround("Lake_Shore_Left", groundSprite, new Vector2(78.55f, -8.6f), new Vector2(6.1f, 0.85f), floorColor);
-        CreateWaterZone("Submerged_Lake", waterSprite, new Vector2(88.9f, -11.4f), new Vector2(14.8f, 5.5f));
+        CreateWaterZone("Submerged_Lake", waterSprite, new Vector2(89.4f, -11.35f), new Vector2(15.8f, 5.65f));
         CreateDestructibleBridge("Lake_Grenade_Bridge", groundSprite, new Vector2(89.15f, -8.25f), new Vector2(15.5f, 0.36f), new Color(0.55f, 0.46f, 0.28f, 1f));
         CreateGround("Lake_Shore_Right", groundSprite, new Vector2(99.2f, -8.6f), new Vector2(5.8f, 0.85f), floorColor);
         CreateGround("Lake_Bed_Left", groundSprite, new Vector2(83.5f, -14.2f), new Vector2(7.8f, 0.8f), floorColor);
@@ -562,6 +920,14 @@ public static class RemnantSquadAlphaBuilder
         CreateOneWayPlatform("Lake_Mid_Rock_01", groundSprite, new Vector2(84.2f, -11.9f), new Vector2(2.2f, 0.35f), platformColor);
         CreateOneWayPlatform("Lake_Mid_Rock_02", groundSprite, new Vector2(89.1f, -10.8f), new Vector2(2.4f, 0.35f), platformColor);
         CreateOneWayPlatform("Lake_Mid_Rock_03", groundSprite, new Vector2(94.1f, -12f), new Vector2(2.4f, 0.35f), platformColor);
+        CreateOneWayPlatform("Lake_Exit_SwimRamp_00", groundSprite, new Vector2(96.1f, -12.65f), new Vector2(2.6f, 0.35f), platformColor);
+        CreateOneWayPlatform("Lake_Exit_SwimRamp_01", groundSprite, new Vector2(98.4f, -11.55f), new Vector2(2.6f, 0.35f), platformColor);
+        CreateOneWayPlatform("Lake_Exit_SwimRamp_02", groundSprite, new Vector2(100.7f, -10.45f), new Vector2(2.7f, 0.35f), platformColor);
+        CreateOneWayPlatform("Lake_Exit_SwimRamp_03", groundSprite, new Vector2(103f, -9.35f), new Vector2(2.8f, 0.35f), platformColor);
+        CreateOneWayPlatform("Lake_Exit_SwimRamp_04", groundSprite, new Vector2(105.3f, -8.25f), new Vector2(2.8f, 0.35f), platformColor);
+        CreateOneWayPlatform("Lake_Exit_SwimRamp_05", groundSprite, new Vector2(107.7f, -6.85f), new Vector2(3f, 0.35f), platformColor);
+        CreateOneWayPlatform("Lake_Exit_SwimRamp_06", groundSprite, new Vector2(110.4f, -5.25f), new Vector2(3.2f, 0.35f), platformColor);
+        CreateOneWayPlatform("Lake_Exit_SwimRamp_07", groundSprite, new Vector2(112.9f, -4.25f), new Vector2(3.2f, 0.35f), platformColor);
         CreateGround("Lake_Exit_Step_00", groundSprite, new Vector2(96.1f, -13.35f), new Vector2(3.2f, 0.8f), floorColor);
         CreateGround("Lake_Exit_Step_01", groundSprite, new Vector2(98.3f, -12.15f), new Vector2(3.4f, 0.8f), floorColor);
         CreateGround("Lake_Exit_Step_02", groundSprite, new Vector2(100.5f, -10.95f), new Vector2(3.6f, 0.8f), floorColor);
@@ -643,6 +1009,7 @@ public static class RemnantSquadAlphaBuilder
         CreateOneWayPlatform("Cliff_AA_Lower_Battery", groundSprite, new Vector2(359.4f, -0.75f), new Vector2(3.8f, 0.35f), platformColor);
         CreateOneWayPlatform("Cliff_AA_Upper_Battery", groundSprite, new Vector2(366.6f, 0.45f), new Vector2(4f, 0.35f), platformColor);
         CreateOneWayPlatform("Final_Lift_Upper_ServiceDeck", groundSprite, new Vector2(377f, 0.3f), new Vector2(5f, 0.35f), platformColor);
+        CreateEnemyWaypointGraph();
         CreateGroundVehicle("Slug_Tank_Prototype", coverSprite, new Vector2(111.2f, -3.25f));
         CreatePlane("Keth_Drop_Plane", coverSprite, new Vector2(120f, 0.8f));
         CreatePlane("Keth_Drop_Plane_Comms_Flyby", coverSprite, new Vector2(207f, 2.2f));
@@ -704,41 +1071,6 @@ public static class RemnantSquadAlphaBuilder
         CreateCheckpoint("Checkpoint_CliffBatteries", checkpointSprite, new Vector2(354.5f, -2.4f), new Vector2(354.5f, -2.25f));
         CreateCheckpoint("Checkpoint_FinalLift", checkpointSprite, new Vector2(374f, -0.75f), new Vector2(374f, -0.6f));
 
-        CreateEnemy("Keth_Grunt_Training", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(-0.8f, -3.35f), 2, 100, false);
-        CreateEnemy("Keth_Grunt_Outpost", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(4.9f, -3.35f), 2, 100, true);
-        CreateEnemy("Keth_Grunt_Platform", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(6.8f, -1.45f), 2, 120, true);
-        CreateEnemy("Keth_Grunt_Bridge", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(19.7f, -3.35f), 2, 100, false);
-        CreateEnemy("Keth_Grunt_Camp_Roof", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(27f, -1.1f), 2, 140, true);
-        CreateEnemy("Keth_Grunt_Camp_Ground", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(30.1f, -3.35f), 2, 120, true);
-        CreateEnemy("Keth_Grunt_AcidExit", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(40.7f, -3.35f), 2, 120, true);
-        CreateEnemy("Keth_Grunt_Arena_Left", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(47.1f, -3.35f), 2, 120, true);
-        CreateEnemy("Keth_Grunt_Arena_Walkway", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(50.2f, -1f), 2, 150, true);
-        CreateEnemy("Keth_Brute_Camp", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(24.5f, -3.2f), 8, 350, true, new Vector2(1.2f, 1.35f));
-        CreateEnemy("Keth_Brute_Gate", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(52f, -3.2f), 12, 550, true, new Vector2(1.35f, 1.45f));
-        CreateEnemy("Keth_Grunt_Descent_01", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(74f, -6.05f), 2, 120, true);
-        CreateSwimmingEnemy("Keth_Eel_Underwater_01", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(84.5f, -11.1f), new Vector2(3.4f, 0f));
-        CreateSwimmingEnemy("Keth_Eel_Underwater_02", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(92f, -12.3f), new Vector2(-3.6f, 0.5f));
-        CreateEnemy("Keth_Grunt_Depot_Left", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(110.2f, -3.35f), 2, 120, false);
-        CreateEnemy("Keth_Grunt_Depot_Right", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(118.4f, -3.35f), 2, 120, true);
-        CreateEnemy("Keth_Brute_Runway", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(129.4f, -3.2f), 12, 600, true, new Vector2(1.35f, 1.45f));
-        CreateEnemy("Keth_Grunt_Comms_LowerDoor", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(198f, -3.35f), 2, 140, true);
-        CreateEnemy("Keth_Grunt_Comms_Gantry", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(202.5f, -0.05f), 2, 160, true);
-        CreateEnemy("Keth_Grunt_Comms_UpperWalkway", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(221.5f, -1.45f), 2, 160, true);
-        CreateEnemy("Keth_Brute_Comms_Blocker", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(218f, -1.35f), 10, 550, true, new Vector2(1.32f, 1.45f));
-        CreateEnemy("Keth_Grunt_Pipeline_Upper", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(232f, -1.45f), 2, 150, true);
-        CreateEnemy("Keth_Grunt_Pipeline_Mid", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(254f, -2.85f), 2, 150, true);
-        CreateEnemy("Keth_Brute_Pipeline_Gate", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(265.5f, -1.45f), 10, 575, true, new Vector2(1.32f, 1.45f));
-        CreateEnemy("Keth_Grunt_Carrier_Wing", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(279.5f, 0.2f), 2, 160, true);
-        CreateEnemy("Keth_Grunt_Carrier_Belly", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(297f, -2.9f), 2, 160, true);
-        CreateEnemy("Keth_Brute_Carrier_Exit", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(304f, -2.15f), 12, 625, true, new Vector2(1.35f, 1.45f));
-        CreateEnemy("Keth_Grunt_RailYard_Front", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(314f, -3.35f), 2, 150, true);
-        CreateEnemy("Keth_Grunt_RailYard_Signal", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(326f, -3.35f), 2, 150, true);
-        CreateEnemy("Keth_Grunt_RailYard_CarTop", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(337.5f, -1.45f), 2, 175, true);
-        CreateEnemy("Keth_Grunt_RailYard_Rear", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(349f, -3.35f), 2, 150, true);
-        CreateEnemy("Keth_Grunt_Cliff_LowerBattery", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(359.4f, -0.15f), 2, 175, true);
-        CreateEnemy("Keth_Grunt_Cliff_UpperBattery", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(366.6f, 1.05f), 2, 200, true);
-        CreateEnemy("Keth_Brute_FinalLift_Guard", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(374f, -0.75f), 14, 750, true, new Vector2(1.45f, 1.55f));
-
         GameObject[] l1AntiAirWave = new GameObject[]
         {
             SetEnemyPatrolDirection(CreateEnemy("L1_Wave_AntiAir_Left_Rusher", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(136.5f, -3.35f), 2, 120, true), 1),
@@ -753,7 +1085,7 @@ public static class RemnantSquadAlphaBuilder
             SetEnemyPatrolDirection(CreateEnemy("L1_Wave_Hangar_BackSpawn_01", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(151.4f, -3.35f), 2, 130, true), 1),
             CreateEnemy("L1_Wave_Hangar_CraneRail_01", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(156f, -1.55f), 2, 150, true),
             SetEnemyPatrolDirection(CreateEnemy("L1_Wave_Hangar_FrontSpawn_01", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(168.8f, -3.35f), 2, 130, true), -1),
-            CreateEnemy("L1_Wave_Hangar_Brute_Blocker", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(164f, -3.2f), 10, 500, true, new Vector2(1.3f, 1.45f))
+            CreateEnemy("L1_Wave_Hangar_Brute_Blocker", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(164f, -3.2f), 10, 500, true, new Vector2(1.05f, 1.45f))
         };
         CreateEnemyWaveTrigger("L1_WaveTrigger_Hangar_Crossfire", new Vector2(153.3f, -2.3f), new Vector2(1.3f, 5f), l1HangarWave, new Vector2[] { new Vector2(151.4f, -3.35f), new Vector2(156f, -1.55f), new Vector2(168.8f, -3.35f), new Vector2(164f, -3.2f) }, 0.36f);
 
@@ -762,48 +1094,62 @@ public static class RemnantSquadAlphaBuilder
             SetEnemyPatrolDirection(CreateEnemy("L1_Wave_Extract_Left_01", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(170f, -3.35f), 2, 150, true), 1),
             SetEnemyPatrolDirection(CreateEnemy("L1_Wave_Extract_Right_01", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(183f, -3.35f), 2, 150, true), -1),
             CreateEnemy("L1_Wave_Extract_Upper_01", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(177.2f, -1.1f), 2, 175, true),
-            CreateEnemy("L1_Wave_Extract_Core_Brute", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(179.5f, -3.2f), 14, 750, true, new Vector2(1.45f, 1.55f))
+            CreateEnemy("L1_Wave_Extract_Core_Brute", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(179.5f, -3.2f), 14, 750, true, new Vector2(1.12f, 1.55f))
         };
         CreateEnemyWaveTrigger("L1_WaveTrigger_Extraction_Holdout", new Vector2(171.8f, -2.3f), new Vector2(1.3f, 5f), l1ExtractWave, new Vector2[] { new Vector2(170f, -3.35f), new Vector2(183f, -3.35f), new Vector2(177.2f, -1.1f), new Vector2(179.5f, -3.2f) }, 0.32f);
 
-        Vector2[] l1ContactRushPositions = new Vector2[] { new Vector2(-1.2f, -3.35f), new Vector2(2.2f, -3.35f), new Vector2(5.6f, -3.35f), new Vector2(8.8f, -3.35f), new Vector2(6.6f, -1.45f), new Vector2(10.2f, -3.35f), new Vector2(12.2f, -2.2f), new Vector2(14.3f, -3.35f) };
-        CreateCameraEnemyWaveTrigger("L1_CameraWave_FirstContact_Rush", -1.2f, CreateEnemyWaveSet("L1_Cam_FirstContact", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1ContactRushPositions, new int[] { 1, 1, -1, -1, -1, -1, -1, -1 }, new bool[] { false, true, false, true, true, false, true, false }, null), l1ContactRushPositions, 0.12f, 0.22f);
+        Vector2[] l1ContactRushPositions = new Vector2[] { new Vector2(5.6f, -3.35f), new Vector2(8.7f, -3.35f), new Vector2(6.6f, -1.45f), new Vector2(12.4f, -3.35f), new Vector2(15.6f, -1.4f), new Vector2(18.9f, -3.35f), new Vector2(22.4f, -3.35f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_FirstContact_Rush", 2.6f, CreateEnemyWaveSet("L1_Cam_FirstContact", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1ContactRushPositions, new int[] { -1, -1, -1, -1, -1, -1, -1 }, new bool[] { false, true, true, false, true, false, true }, null), l1ContactRushPositions, 0.12f, 0.28f);
+        Vector2[] l1ContactRearPositions = new Vector2[] { new Vector2(1.8f, -3.35f), new Vector2(3.6f, -3.35f), new Vector2(6.1f, -3.35f), new Vector2(6.6f, -1.45f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_FirstContact_RearChase", 7.2f, CreateEnemyWaveSet("L1_Cam_FirstContactRear", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1ContactRearPositions, new int[] { 1, 1, 1, 1 }, new bool[] { false, false, true, true }, null), l1ContactRearPositions, 0.2f, 0.2f);
 
-        Vector2[] l1BridgeCrossfirePositions = new Vector2[] { new Vector2(11.5f, -3.35f), new Vector2(14.2f, -2.25f), new Vector2(17.5f, -1.55f), new Vector2(21.5f, -3.35f), new Vector2(22.8f, -3.35f), new Vector2(19.3f, -0.35f), new Vector2(15.4f, -3.35f), new Vector2(24.5f, -3.35f) };
-        CreateCameraEnemyWaveTrigger("L1_CameraWave_Bridge_Crossfire", 9.6f, CreateEnemyWaveSet("L1_Cam_Bridge", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1BridgeCrossfirePositions, new int[] { 1, -1, -1, -1, -1, -1, 1, -1 }, new bool[] { true, true, true, false, true, true, false, true }, null), l1BridgeCrossfirePositions, 0.1f, 0.2f);
+        Vector2[] l1BridgeCrossfirePositions = new Vector2[] { new Vector2(8.9f, -3.35f), new Vector2(12.8f, -2.2f), new Vector2(16f, -3.35f), new Vector2(18.3f, -0.7f), new Vector2(21.4f, -3.35f), new Vector2(24.6f, -3.35f), new Vector2(27.2f, -1.1f), new Vector2(30.8f, -3.35f), new Vector2(34.6f, -3.35f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_Bridge_Crossfire", 9.6f, CreateEnemyWaveSet("L1_Cam_Bridge", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1BridgeCrossfirePositions, new int[] { 1, -1, 1, -1, -1, -1, -1, -1, -1 }, new bool[] { false, true, false, true, true, false, true, false, true }, null), l1BridgeCrossfirePositions, 0.1f, 0.25f);
+        Vector2[] l1BridgeRearPositions = new Vector2[] { new Vector2(10.2f, -3.35f), new Vector2(12.8f, -2.2f), new Vector2(15.2f, -3.35f), new Vector2(18.3f, -0.7f), new Vector2(20.2f, -3.35f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_Bridge_RearStagger", 17.2f, CreateEnemyWaveSet("L1_Cam_BridgeRear", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1BridgeRearPositions, new int[] { 1, 1, 1, 1, 1 }, new bool[] { false, true, false, true, true }, null), l1BridgeRearPositions, 0.15f, 0.22f);
 
-        Vector2[] l1CampPressurePositions = new Vector2[] { new Vector2(21.8f, -3.35f), new Vector2(24f, -3.35f), new Vector2(27.1f, -1.1f), new Vector2(30.7f, -3.35f), new Vector2(32.3f, -3.35f), new Vector2(28.6f, -1.05f), new Vector2(23.4f, -3.2f), new Vector2(34.2f, -3.35f), new Vector2(36.6f, -1.5f) };
-        CreateCameraEnemyWaveTrigger("L1_CameraWave_POWCamp_Pressure", 21.2f, CreateEnemyWaveSet("L1_Cam_Camp", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1CampPressurePositions, new int[] { 1, 1, -1, -1, -1, -1, 1, -1, -1 }, new bool[] { false, true, true, true, false, true, true, false, true }, new bool[] { false, false, false, false, false, false, true, false, false }), l1CampPressurePositions, 0.18f, 0.28f);
+        Vector2[] l1CampPressurePositions = new Vector2[] { new Vector2(20.2f, -3.35f), new Vector2(23.8f, -3.35f), new Vector2(27.2f, -1.1f), new Vector2(31.8f, -3.35f), new Vector2(36f, -1.5f), new Vector2(39.2f, -3.35f), new Vector2(25.5f, -3.25f), new Vector2(34.2f, -3.35f), new Vector2(42.5f, -3.35f), new Vector2(46.4f, -3.25f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_POWCamp_Pressure", 21.2f, CreateEnemyWaveSet("L1_Cam_Camp", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1CampPressurePositions, new int[] { 1, 1, -1, -1, -1, -1, 1, -1, -1, -1 }, new bool[] { false, true, true, true, true, false, true, false, true, true }, new bool[] { false, false, false, false, false, false, true, false, false, false }), l1CampPressurePositions, 0.16f, 0.27f);
+        Vector2[] l1CampRearPositions = new Vector2[] { new Vector2(22.2f, -3.35f), new Vector2(24.8f, -3.35f), new Vector2(27.2f, -1.1f), new Vector2(30.2f, -3.35f), new Vector2(34f, -3.35f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_POWCamp_RearPincer", 31.5f, CreateEnemyWaveSet("L1_Cam_CampRear", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1CampRearPositions, new int[] { 1, 1, 1, 1, 1 }, new bool[] { false, true, true, false, true }, null), l1CampRearPositions, 0.1f, 0.2f);
 
-        Vector2[] l1AcidRunPositions = new Vector2[] { new Vector2(31.6f, -3.35f), new Vector2(33.5f, -2.25f), new Vector2(36f, -1.5f), new Vector2(38.6f, -2.25f), new Vector2(41.6f, -3.35f), new Vector2(43.5f, -3.35f), new Vector2(39f, -0.35f), new Vector2(45.8f, -3.35f) };
-        CreateCameraEnemyWaveTrigger("L1_CameraWave_AcidTrench_DangerLoop", 30.4f, CreateEnemyWaveSet("L1_Cam_Acid", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1AcidRunPositions, new int[] { 1, -1, -1, -1, -1, -1, -1, -1 }, new bool[] { false, true, true, true, true, false, true, false }, null), l1AcidRunPositions, 0.1f, 0.24f);
+        Vector2[] l1AcidRunPositions = new Vector2[] { new Vector2(31.8f, -3.35f), new Vector2(33.5f, -2.25f), new Vector2(36f, -1.5f), new Vector2(38.6f, -2.25f), new Vector2(41.2f, -3.35f), new Vector2(44.4f, -3.35f), new Vector2(47.4f, -3.35f), new Vector2(50.8f, -3.25f), new Vector2(53.6f, -3.35f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_AcidTrench_DangerLoop", 30.4f, CreateEnemyWaveSet("L1_Cam_Acid", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1AcidRunPositions, new int[] { 1, -1, -1, -1, -1, -1, -1, -1, -1 }, new bool[] { false, true, true, true, true, false, true, false, true }, null), l1AcidRunPositions, 0.08f, 0.24f);
 
-        Vector2[] l1LakeAmbushPositions = new Vector2[] { new Vector2(73f, -6.05f), new Vector2(78.8f, -7.95f), new Vector2(84.2f, -11.35f), new Vector2(89.1f, -10.25f), new Vector2(94.2f, -11.45f), new Vector2(98.5f, -10.55f), new Vector2(103.8f, -8.1f), new Vector2(108.6f, -5.95f) };
-        CreateCameraEnemyWaveTrigger("L1_CameraWave_Lake_Ambush", 67.5f, CreateEnemyWaveSet("L1_Cam_Lake", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1LakeAmbushPositions, new int[] { -1, -1, 1, -1, -1, -1, -1, -1 }, new bool[] { true, false, true, true, true, false, true, false }, null), l1LakeAmbushPositions, 0.15f, 0.32f);
+        Vector2[] l1LakeAmbushPositions = new Vector2[] { new Vector2(70.8f, -6.05f), new Vector2(77.6f, -7.95f), new Vector2(84.2f, -11.35f), new Vector2(89.1f, -10.25f), new Vector2(94.2f, -11.45f), new Vector2(99.8f, -9.9f), new Vector2(105.5f, -7.6f), new Vector2(111.5f, -4.7f), new Vector2(116.4f, -3.35f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_Lake_Ambush", 67.5f, CreateEnemyWaveSet("L1_Cam_Lake", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1LakeAmbushPositions, new int[] { 1, 1, 1, -1, -1, -1, -1, -1, -1 }, new bool[] { true, false, true, true, true, false, true, false, true }, null), l1LakeAmbushPositions, 0.15f, 0.3f);
+        Vector2[] l1LakeRearPositions = new Vector2[] { new Vector2(73.2f, -6.05f), new Vector2(78.4f, -7.95f), new Vector2(84.2f, -11.35f), new Vector2(89.1f, -10.25f), new Vector2(96.1f, -12.0f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_Lake_RearDive", 84f, CreateEnemyWaveSet("L1_Cam_LakeRear", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1LakeRearPositions, new int[] { 1, 1, 1, 1, 1 }, new bool[] { false, true, true, true, false }, null), l1LakeRearPositions, 0.15f, 0.25f);
 
-        Vector2[] l1RunwayPositions = new Vector2[] { new Vector2(110f, -3.35f), new Vector2(114f, -1.45f), new Vector2(119.5f, -3.35f), new Vector2(125.5f, -1.55f), new Vector2(130.5f, -3.2f), new Vector2(135f, -3.35f), new Vector2(128.4f, -0.7f), new Vector2(139.5f, -3.35f) };
-        CreateCameraEnemyWaveTrigger("L1_CameraWave_Runway_ChaoticPush", 106f, CreateEnemyWaveSet("L1_Cam_Runway", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1RunwayPositions, new int[] { 1, -1, -1, -1, -1, -1, -1, -1 }, new bool[] { false, true, true, true, true, false, true, true }, new bool[] { false, false, false, false, true, false, false, false }), l1RunwayPositions, 0.12f, 0.22f);
+        Vector2[] l1RunwayPositions = new Vector2[] { new Vector2(108.8f, -3.35f), new Vector2(113.5f, -1.3f), new Vector2(119.4f, -3.35f), new Vector2(125.5f, -1.45f), new Vector2(131.5f, -3.2f), new Vector2(136.8f, -3.35f), new Vector2(142.8f, -3.35f), new Vector2(147.2f, -0.3f), new Vector2(151.5f, -3.35f), new Vector2(156.8f, -3.35f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_Runway_ChaoticPush", 106f, CreateEnemyWaveSet("L1_Cam_Runway", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1RunwayPositions, new int[] { 1, -1, -1, -1, -1, 1, -1, -1, -1, -1 }, new bool[] { false, true, true, true, true, false, true, true, false, true }, new bool[] { false, false, false, false, true, false, false, false, false, false }), l1RunwayPositions, 0.1f, 0.24f);
+        Vector2[] l1RunwayRearPositions = new Vector2[] { new Vector2(108.8f, -3.35f), new Vector2(113.5f, -1.3f), new Vector2(118.4f, -3.35f), new Vector2(124.5f, -3.35f), new Vector2(128.5f, -3.35f), new Vector2(133.5f, -3.2f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_Runway_RearDoorFlood", 126f, CreateEnemyWaveSet("L1_Cam_RunwayRear", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1RunwayRearPositions, new int[] { 1, 1, 1, 1, 1, 1 }, new bool[] { false, true, false, true, false, true }, null), l1RunwayRearPositions, 0.1f, 0.18f);
 
-        Vector2[] l1HangarPressurePositions = new Vector2[] { new Vector2(141f, -3.35f), new Vector2(146.8f, -1.1f), new Vector2(151.4f, -3.35f), new Vector2(156f, -1.55f), new Vector2(161.2f, -3.35f), new Vector2(168.8f, -3.35f), new Vector2(174.5f, -3.35f), new Vector2(179.5f, -3.2f), new Vector2(183.5f, -3.35f) };
-        CreateCameraEnemyWaveTrigger("L1_CameraWave_Hangar_ElevatorPressure", 135.5f, CreateEnemyWaveSet("L1_Cam_Hangar", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1HangarPressurePositions, new int[] { 1, -1, 1, -1, 1, -1, 1, -1, -1 }, new bool[] { false, true, false, true, true, true, false, true, true }, new bool[] { false, false, false, false, false, false, false, true, false }), l1HangarPressurePositions, 0.08f, 0.2f);
+        Vector2[] l1HangarPressurePositions = new Vector2[] { new Vector2(136.4f, -3.35f), new Vector2(141.2f, -3.35f), new Vector2(147.2f, -0.3f), new Vector2(151.8f, -3.35f), new Vector2(156f, -1.55f), new Vector2(162.4f, -3.35f), new Vector2(169.8f, -3.35f), new Vector2(176.8f, -1.1f), new Vector2(181.2f, -3.2f), new Vector2(186.8f, -3.35f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_Hangar_ElevatorPressure", 135.5f, CreateEnemyWaveSet("L1_Cam_Hangar", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1HangarPressurePositions, new int[] { 1, 1, -1, 1, -1, 1, -1, 1, -1, -1 }, new bool[] { false, true, true, false, true, true, true, false, true, true }, new bool[] { false, false, false, false, false, false, false, false, true, false }), l1HangarPressurePositions, 0.08f, 0.24f);
 
-        Vector2[] l1CommsShaftPositions = new Vector2[] { new Vector2(193.8f, -3.35f), new Vector2(199.5f, -3.35f), new Vector2(202.5f, -0.05f), new Vector2(207f, -2.15f), new Vector2(211f, 0.95f), new Vector2(216.5f, -1.45f), new Vector2(222.5f, -1.45f), new Vector2(225.5f, -1.45f), new Vector2(218.5f, -1.35f) };
-        CreateCameraEnemyWaveTrigger("L1_CameraWave_CommsShaft_VerticalPinch", 188f, CreateEnemyWaveSet("L1_Cam_Comms", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1CommsShaftPositions, new int[] { 1, 1, -1, 1, -1, -1, -1, -1, -1 }, new bool[] { false, true, true, false, true, true, false, true, true }, new bool[] { false, false, false, false, false, false, false, false, true }), l1CommsShaftPositions, 0.1f, 0.2f);
+        Vector2[] l1CommsShaftPositions = new Vector2[] { new Vector2(192f, -3.35f), new Vector2(198.4f, -3.35f), new Vector2(202.5f, -0.05f), new Vector2(206.9f, -2.15f), new Vector2(211f, 0.95f), new Vector2(216.2f, -1.45f), new Vector2(222.2f, -1.45f), new Vector2(226.5f, -1.45f), new Vector2(218.8f, -1.35f), new Vector2(232.6f, -1.45f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_CommsShaft_VerticalPinch", 188f, CreateEnemyWaveSet("L1_Cam_Comms", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1CommsShaftPositions, new int[] { 1, 1, -1, 1, -1, -1, -1, -1, -1, -1 }, new bool[] { false, true, true, false, true, true, false, true, true, false }, new bool[] { false, false, false, false, false, false, false, false, true, false }), l1CommsShaftPositions, 0.1f, 0.26f);
+        Vector2[] l1CommsRearPositions = new Vector2[] { new Vector2(194f, -3.35f), new Vector2(202.5f, -0.05f), new Vector2(203.4f, -2.85f), new Vector2(211f, 1.05f), new Vector2(218.2f, -1.45f), new Vector2(224.8f, -1.45f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_CommsShaft_RearDrop", 207f, CreateEnemyWaveSet("L1_Cam_CommsRear", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1CommsRearPositions, new int[] { 1, 1, 1, 1, 1, 1 }, new bool[] { false, true, false, true, false, true }, null), l1CommsRearPositions, 0.1f, 0.2f);
 
-        Vector2[] l1PipelinePositions = new Vector2[] { new Vector2(225f, -1.45f), new Vector2(231f, -1.45f), new Vector2(238.5f, -2.2f), new Vector2(245f, -2.9f), new Vector2(253.5f, -2.9f), new Vector2(262.5f, -2.2f), new Vector2(268.5f, -1.45f), new Vector2(255f, -1.3f), new Vector2(265.5f, -1.45f) };
-        CreateCameraEnemyWaveTrigger("L1_CameraWave_Pipeline_SwitchbackCrossfire", 224.5f, CreateEnemyWaveSet("L1_Cam_Pipeline", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1PipelinePositions, new int[] { 1, -1, 1, -1, -1, 1, -1, -1, -1 }, new bool[] { false, true, true, true, false, true, true, true, true }, new bool[] { false, false, false, false, false, false, false, false, true }), l1PipelinePositions, 0.12f, 0.21f);
+        Vector2[] l1PipelinePositions = new Vector2[] { new Vector2(225f, -1.45f), new Vector2(231f, -1.45f), new Vector2(238.5f, -2.2f), new Vector2(245f, -2.9f), new Vector2(253.5f, -2.9f), new Vector2(262.5f, -2.2f), new Vector2(268.5f, -1.45f), new Vector2(255f, -1.3f), new Vector2(272f, -1.45f), new Vector2(276.8f, -1.45f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_Pipeline_SwitchbackCrossfire", 224.5f, CreateEnemyWaveSet("L1_Cam_Pipeline", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1PipelinePositions, new int[] { 1, -1, 1, -1, -1, 1, -1, -1, -1, -1 }, new bool[] { false, true, true, true, false, true, true, true, false, true }, new bool[] { false, false, false, false, false, false, false, false, true, false }), l1PipelinePositions, 0.1f, 0.26f);
 
-        Vector2[] l1CarrierPositions = new Vector2[] { new Vector2(270.5f, -1.45f), new Vector2(277f, -1.45f), new Vector2(279.5f, 0.2f), new Vector2(286.5f, -1.45f), new Vector2(290.5f, -0.35f), new Vector2(296.5f, -2.9f), new Vector2(302.5f, -2.15f), new Vector2(309f, -2.15f), new Vector2(304.5f, -2.15f) };
-        CreateCameraEnemyWaveTrigger("L1_CameraWave_CarrierSpine_WreckAmbush", 267.5f, CreateEnemyWaveSet("L1_Cam_Carrier", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1CarrierPositions, new int[] { 1, 1, -1, -1, -1, -1, -1, -1, -1 }, new bool[] { false, true, true, false, true, true, false, true, true }, new bool[] { false, false, false, false, false, false, false, false, true }), l1CarrierPositions, 0.08f, 0.19f);
+        Vector2[] l1CarrierPositions = new Vector2[] { new Vector2(270.5f, -1.45f), new Vector2(277f, -1.45f), new Vector2(279.5f, 0.2f), new Vector2(286.5f, -1.45f), new Vector2(290.5f, -0.35f), new Vector2(296.5f, -2.9f), new Vector2(302.5f, -2.15f), new Vector2(309f, -2.15f), new Vector2(313.8f, -3.35f), new Vector2(318.6f, -3.35f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_CarrierSpine_WreckAmbush", 267.5f, CreateEnemyWaveSet("L1_Cam_Carrier", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1CarrierPositions, new int[] { 1, 1, -1, -1, -1, -1, -1, -1, -1, -1 }, new bool[] { false, true, true, false, true, true, false, true, true, false }, new bool[] { false, false, false, false, false, false, false, false, true, false }), l1CarrierPositions, 0.08f, 0.24f);
 
-        Vector2[] l1RailYardPositions = new Vector2[] { new Vector2(308.5f, -3.35f), new Vector2(314f, -3.35f), new Vector2(316f, -1.45f), new Vector2(321.5f, -3.35f), new Vector2(328f, -3.35f), new Vector2(337.5f, -1.45f), new Vector2(343f, -3.35f), new Vector2(350f, -3.35f), new Vector2(354.5f, -2.5f), new Vector2(346f, -3.2f) };
-        CreateCameraEnemyWaveTrigger("L1_CameraWave_RailYard_StaggeredDoors", 305f, CreateEnemyWaveSet("L1_Cam_RailYard", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1RailYardPositions, new int[] { 1, 1, -1, 1, -1, -1, -1, -1, -1, -1 }, new bool[] { false, true, true, false, true, true, false, true, true, true }, new bool[] { false, false, false, false, false, false, false, false, false, true }), l1RailYardPositions, 0.08f, 0.17f);
+        Vector2[] l1RailYardPositions = new Vector2[] { new Vector2(308.8f, -3.35f), new Vector2(314f, -3.35f), new Vector2(316f, -1.45f), new Vector2(322f, -3.35f), new Vector2(328f, -3.35f), new Vector2(337.5f, -1.45f), new Vector2(343f, -3.35f), new Vector2(350f, -3.35f), new Vector2(354.5f, -2.5f), new Vector2(346f, -3.2f), new Vector2(358.8f, -2.5f), new Vector2(363.5f, -1.65f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_RailYard_StaggeredDoors", 305f, CreateEnemyWaveSet("L1_Cam_RailYard", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1RailYardPositions, new int[] { 1, 1, -1, 1, -1, -1, -1, -1, -1, -1, -1, -1 }, new bool[] { false, true, true, false, true, true, false, true, true, true, false, true }, new bool[] { false, false, false, false, false, false, false, false, false, true, false, false }), l1RailYardPositions, 0.08f, 0.22f);
+        Vector2[] l1RailRearPositions = new Vector2[] { new Vector2(309f, -3.35f), new Vector2(316f, -1.45f), new Vector2(321.5f, -3.35f), new Vector2(328f, -3.35f), new Vector2(337.5f, -1.45f), new Vector2(342f, -3.35f), new Vector2(350f, -3.35f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_RailYard_RearDoorFlood", 329f, CreateEnemyWaveSet("L1_Cam_RailRear", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1RailRearPositions, new int[] { 1, 1, 1, 1, 1, 1, 1 }, new bool[] { false, true, false, true, true, false, true }, null), l1RailRearPositions, 0.08f, 0.18f);
 
-        Vector2[] l1CliffPositions = new Vector2[] { new Vector2(352.5f, -2.5f), new Vector2(356f, -2.5f), new Vector2(359.4f, -0.15f), new Vector2(362f, -1.65f), new Vector2(366.6f, 1.05f), new Vector2(370f, -0.75f), new Vector2(376f, -0.75f), new Vector2(379f, -0.75f), new Vector2(373.5f, -0.75f) };
-        CreateCameraEnemyWaveTrigger("L1_CameraWave_CliffBatteries_UphillPressure", 348.5f, CreateEnemyWaveSet("L1_Cam_Cliff", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1CliffPositions, new int[] { 1, 1, -1, 1, -1, -1, -1, -1, -1 }, new bool[] { false, true, true, false, true, true, false, true, true }, new bool[] { false, false, false, false, false, false, false, false, true }), l1CliffPositions, 0.1f, 0.2f);
+        Vector2[] l1CliffPositions = new Vector2[] { new Vector2(352.5f, -2.5f), new Vector2(356f, -2.5f), new Vector2(359.4f, -0.15f), new Vector2(362f, -1.65f), new Vector2(366.6f, 1.05f), new Vector2(370f, -0.75f), new Vector2(374.5f, -0.75f), new Vector2(378.5f, -0.75f), new Vector2(372.5f, -0.75f), new Vector2(381.2f, -0.75f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_CliffBatteries_UphillPressure", 348.5f, CreateEnemyWaveSet("L1_Cam_Cliff", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1CliffPositions, new int[] { 1, 1, -1, 1, -1, -1, 1, -1, -1, -1 }, new bool[] { false, true, true, false, true, true, false, true, true, true }, new bool[] { false, false, false, false, false, false, false, false, true, false }), l1CliffPositions, 0.1f, 0.24f);
 
-        Vector2[] l1FinalLiftPositions = new Vector2[] { new Vector2(366.6f, 1.05f), new Vector2(370.5f, -0.75f), new Vector2(374f, -0.75f), new Vector2(377f, 0.85f), new Vector2(379f, -0.75f), new Vector2(381f, -0.75f) };
-        CreateCameraEnemyWaveTrigger("L1_CameraWave_FinalLift_LastHoldout", 362.5f, CreateEnemyWaveSet("L1_Cam_FinalLift", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1FinalLiftPositions, new int[] { -1, 1, -1, -1, -1, -1 }, new bool[] { true, false, true, true, true, true }, new bool[] { false, false, true, false, false, false }), l1FinalLiftPositions, 0.2f, 0.24f);
+        Vector2[] l1FinalLiftPositions = new Vector2[] { new Vector2(366.6f, 1.05f), new Vector2(370.5f, -0.75f), new Vector2(374f, -0.75f), new Vector2(377f, 0.85f), new Vector2(379f, -0.75f), new Vector2(381f, -0.75f), new Vector2(372.2f, -0.75f), new Vector2(376.2f, -0.75f) };
+        CreateCameraEnemyWaveTrigger("L1_CameraWave_FinalLift_LastHoldout", 362.5f, CreateEnemyWaveSet("L1_Cam_FinalLift", enemySprite, bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, l1FinalLiftPositions, new int[] { -1, 1, -1, -1, -1, -1, 1, -1 }, new bool[] { true, false, true, true, true, true, false, true }, new bool[] { false, false, true, false, false, false, false, false }), l1FinalLiftPositions, 0.2f, 0.22f);
 
         CreatePOW("POW_Camp_Prisoner", powSprite, new Vector2(22.5f, -3.3f));
         CreatePOW("POW_Arena_Prisoner", powSprite, new Vector2(46.1f, -3.3f));
@@ -843,7 +1189,7 @@ public static class RemnantSquadAlphaBuilder
         Color coverColor = new Color(0.56f, 0.66f, 0.78f, 1f);
         Color alienGlow = new Color(0.78f, 0.25f, 0.92f, 0.55f);
 
-        CreateWorldText("Level_Title", "LEVEL 2 - KETH BLOOM BASIN", new Vector3(-6.5f, 0.45f, 0f), 0.32f);
+        CreateWorldText("Level_Title", "LEVEL 2 - KETH BLOOM BASIN", new Vector3(-6.5f, 0.45f, 0f), 0.32f).SetActive(false);
         CreateDesignLabel("L2_A_Overlook_Label", "L2-A BASIN OVERLOOK\ncalm reveal, alien landmark", new Vector3(-4.7f, -0.9f, 0f));
         CreateDesignLabel("L2_B_BloomFields_Label", "L2-B BLOOM FIELDS\npatrols, pods, short rests", new Vector3(12.8f, -0.7f, 0f));
         CreateDesignLabel("L2_C_Pumpworks_Label", "L2-C VERTICAL PUMPWORKS\nup/down routes, cardinal fire lanes", new Vector3(36.5f, -0.45f, 0f));
@@ -999,7 +1345,7 @@ public static class RemnantSquadAlphaBuilder
         CreateEnemy("L2_Keth_Alien_Grunt_Bloom_Canopy", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(20.6f, -1.5f), 2, 150, true);
         CreateEnemy("L2_Keth_Alien_Grunt_Pump_Lower", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(39.5f, -4.65f), 2, 140, true);
         CreateEnemy("L2_Keth_Alien_Grunt_Pump_Upper", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(43.3f, -1.8f), 2, 160, true);
-        CreateEnemy("L2_Keth_Alien_Brute_PumpExit", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(51.6f, -3.2f), 9, 420, true, new Vector2(1.25f, 1.42f));
+        CreateEnemy("L2_Keth_Alien_Brute_PumpExit", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(51.6f, -3.2f), 9, 420, true, new Vector2(1.05f, 1.42f));
         CreateEnemy("L2_Keth_Alien_Grunt_Descent", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(62.2f, -6.45f), 2, 140, true);
         CreateSwimmingEnemy("L2_Keth_Aquatic_Eel_Left", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(72.5f, -12.5f), new Vector2(3.4f, 0.2f));
         CreateSwimmingEnemy("L2_Keth_Aquatic_Eel_Right", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(82.5f, -13.2f), new Vector2(-3.8f, 0.4f));
@@ -1007,15 +1353,15 @@ public static class RemnantSquadAlphaBuilder
         CreateEnemy("L2_Keth_Alien_Grunt_Canyon_Dock", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(116.5f, -3.35f), 2, 150, true);
         CreateEnemy("L2_Keth_Alien_Grunt_Canyon_Low", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(130f, -5.85f), 2, 150, true);
         CreateEnemy("L2_Keth_Alien_Grunt_Hatchery_Walkway", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(151f, -1f), 2, 170, true);
-        CreateEnemy("L2_Keth_Alien_Brute_Hatchery", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(156.8f, -3.2f), 10, 520, true, new Vector2(1.35f, 1.45f));
-        CreateEnemy("L2_Keth_Alien_Brute_Arena_Left", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(170.5f, -3.2f), 11, 560, true, new Vector2(1.35f, 1.45f));
-        CreateEnemy("L2_Keth_Alien_Brute_Arena_Right", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(178f, -3.2f), 11, 560, true, new Vector2(1.35f, 1.45f));
+        CreateEnemy("L2_Keth_Alien_Brute_Hatchery", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(156.8f, -3.2f), 10, 520, true, new Vector2(1.05f, 1.45f));
+        CreateEnemy("L2_Keth_Alien_Brute_Arena_Left", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(170.5f, -3.2f), 11, 560, true, new Vector2(1.05f, 1.45f));
+        CreateEnemy("L2_Keth_Alien_Brute_Arena_Right", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(178f, -3.2f), 11, 560, true, new Vector2(1.05f, 1.45f));
         CreateEnemy("L2_Keth_Alien_Grunt_Core_Left", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(192f, -3.35f), 2, 180, true);
-        CreateEnemy("L2_Keth_Alien_Brute_Core_Guard", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(198.5f, -3.2f), 14, 750, true, new Vector2(1.5f, 1.55f));
+        CreateEnemy("L2_Keth_Alien_Brute_Core_Guard", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(198.5f, -3.2f), 14, 750, true, new Vector2(1.12f, 1.55f));
         CreateEnemy("L2_Keth_Alien_Grunt_Reactor_Low", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(222f, -3.35f), 2, 180, true);
         CreateEnemy("L2_Keth_Alien_Grunt_Skybridge_Left", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(236f, -3.35f), 2, 180, true);
         CreateEnemy("L2_Keth_Alien_Grunt_Skybridge_Upper", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(246f, -1.35f), 2, 190, true);
-        CreateEnemy("L2_Keth_Alien_Brute_CarrierMouth", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(260f, -3.2f), 15, 850, true, new Vector2(1.55f, 1.6f));
+        CreateEnemy("L2_Keth_Alien_Brute_CarrierMouth", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(260f, -3.2f), 15, 850, true, new Vector2(1.15f, 1.6f));
 
         GameObject[] l2BloomWave = new GameObject[]
         {
@@ -1030,7 +1376,7 @@ public static class RemnantSquadAlphaBuilder
             SetEnemyPatrolDirection(CreateEnemy("L2_Wave_Pump_Lower_Left", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(32f, -3.35f), 2, 140, true), 1),
             CreateEnemy("L2_Wave_Pump_Upper_Mid", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(38.5f, -0.6f), 2, 160, true),
             SetEnemyPatrolDirection(CreateEnemy("L2_Wave_Pump_Lower_Right", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(47f, -3.35f), 2, 140, true), -1),
-            CreateEnemy("L2_Wave_Pump_Falling_Brute", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(43.3f, 0.4f), 9, 460, true, new Vector2(1.25f, 1.42f))
+            CreateEnemy("L2_Wave_Pump_Falling_Brute", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(43.3f, 0.4f), 9, 460, true, new Vector2(1.05f, 1.42f))
         };
         CreateEnemyWaveTrigger("L2_WaveTrigger_Pumpworks_Crossfire", new Vector2(31.5f, -2.2f), new Vector2(1.3f, 5.5f), l2PumpWave, new Vector2[] { new Vector2(32f, -3.35f), new Vector2(38.5f, -0.6f), new Vector2(47f, -3.35f), new Vector2(43.3f, 0.4f) }, 0.38f);
 
@@ -1039,7 +1385,7 @@ public static class RemnantSquadAlphaBuilder
             SetEnemyPatrolDirection(CreateEnemy("L2_Wave_Hatchery_BackSpawn", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(141.2f, -3.35f), 2, 170, true), 1),
             CreateEnemy("L2_Wave_Hatchery_Walkway", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(151f, -1f), 2, 190, true),
             SetEnemyPatrolDirection(CreateEnemy("L2_Wave_Hatchery_FrontSpawn", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(159f, -3.35f), 2, 170, true), -1),
-            CreateEnemy("L2_Wave_Hatchery_Brute_Pod", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(154f, -3.2f), 10, 560, true, new Vector2(1.35f, 1.45f))
+            CreateEnemy("L2_Wave_Hatchery_Brute_Pod", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(154f, -3.2f), 10, 560, true, new Vector2(1.05f, 1.45f))
         };
         CreateEnemyWaveTrigger("L2_WaveTrigger_Hatchery_PodBurst", new Vector2(142.2f, -2.2f), new Vector2(1.3f, 5f), l2HatcheryWave, new Vector2[] { new Vector2(141.2f, -3.35f), new Vector2(151f, -1f), new Vector2(159f, -3.35f), new Vector2(154f, -3.2f) }, 0.33f);
 
@@ -1056,7 +1402,7 @@ public static class RemnantSquadAlphaBuilder
             SetEnemyPatrolDirection(CreateEnemy("L2_Wave_Carrier_Left_01", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(249f, -3.35f), 2, 190, true), 1),
             SetEnemyPatrolDirection(CreateEnemy("L2_Wave_Carrier_Right_01", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(265f, -3.35f), 2, 190, true), -1),
             CreateEnemy("L2_Wave_Carrier_Upper", enemySprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(258.5f, -0.95f), 2, 210, true),
-            CreateEnemy("L2_Wave_Carrier_Final_Brute", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(260.8f, -3.2f), 16, 900, true, new Vector2(1.55f, 1.6f))
+            CreateEnemy("L2_Wave_Carrier_Final_Brute", bruteSprite, enemyProjectilePrefab, enemyDeathPrefab, new Vector2(260.8f, -3.2f), 16, 900, true, new Vector2(1.15f, 1.6f))
         };
         CreateEnemyWaveTrigger("L2_WaveTrigger_Carrier_Mouth", new Vector2(250.5f, -2.2f), new Vector2(1.3f, 5f), l2CarrierWave, new Vector2[] { new Vector2(249f, -3.35f), new Vector2(265f, -3.35f), new Vector2(258.5f, -0.95f), new Vector2(260.8f, -3.2f) }, 0.3f);
 
@@ -1110,6 +1456,7 @@ public static class RemnantSquadAlphaBuilder
 
         GameObject label = CreateWorldText(name + "_Label", labelText, new Vector3(position.x, position.y + scale.y * 0.5f + 0.35f, 0f), 0.2f);
         label.transform.SetParent(water.transform);
+        label.SetActive(false);
     }
 
     private static void CreateHoverVehicle(string name, Sprite sprite, GameObject projectilePrefab, Vector2 position)
@@ -1234,6 +1581,7 @@ public static class RemnantSquadAlphaBuilder
 
         GameObject label = CreateWorldText(name + "_Label", "COMPANION", new Vector3(position.x, position.y + 0.7f, 0f), 0.18f);
         label.transform.SetParent(companion.transform);
+        label.SetActive(false);
     }
 
     private static GameObject CreateAmbientMover(string name, Sprite sprite, Vector2 position, Vector2 scale, Color color, Vector2 velocity, float travelDistance, string labelText)
@@ -1254,9 +1602,31 @@ public static class RemnantSquadAlphaBuilder
         {
             GameObject label = CreateWorldText(name + "_Label", labelText, new Vector3(position.x, position.y + scale.y * 0.5f + 0.35f, 0f), 0.16f);
             label.transform.SetParent(mover.transform);
+            label.SetActive(false);
         }
 
         return mover;
+    }
+
+    private static void CreateRuntimeTools(GameObject playerProjectilePrefab, GameObject enemyProjectilePrefab, GameObject bulletHitPrefab, GameObject enemyDeathPrefab, GameObject explosionPrefab)
+    {
+        GameObject tools = new GameObject("RuntimeTools");
+
+        ObjectPool2D pool = tools.AddComponent<ObjectPool2D>();
+        pool.Prewarm(playerProjectilePrefab, 48);
+        pool.Prewarm(enemyProjectilePrefab, 80);
+        pool.Prewarm(bulletHitPrefab, 48);
+        pool.Prewarm(enemyDeathPrefab, 20);
+        pool.Prewarm(explosionPrefab, 12);
+
+        GameplayDebugOverlay2D debugOverlay = tools.AddComponent<GameplayDebugOverlay2D>();
+        debugOverlay.showOverlay = false;
+
+        tools.AddComponent<PhysicsLayerSetup2D>();
+
+        GameObject label = CreateWorldText("RuntimeTools_Label", "RUNTIME TOOLS: F1 DEBUG / POOLS / AI VISUALIZATION", new Vector3(-8.5f, 1.8f, 0f), 0.18f);
+        label.transform.SetParent(tools.transform);
+        label.SetActive(false);
     }
 
     private static GameObject CreateEnemyWaveTrigger(string name, Vector2 triggerPosition, Vector2 triggerSize, GameObject[] spawnObjects, Vector2[] spawnPositions, float spawnInterval)
@@ -1282,6 +1652,8 @@ public static class RemnantSquadAlphaBuilder
         wave.spawnObjects = spawnObjects;
         wave.spawnPoints = spawnPoints;
         wave.spawnInterval = spawnInterval;
+        wave.resolveBlockedSpawns = false;
+        wave.spawnBlockLayers = LayerMask.GetMask("Ground");
 
         CreateDesignLabel(name + "_Label", "WAVE TRIGGER: " + name, new Vector3(triggerPosition.x, triggerPosition.y + triggerSize.y * 0.5f + 0.35f, 0f)).transform.SetParent(trigger.transform);
         return trigger;
@@ -1311,7 +1683,7 @@ public static class RemnantSquadAlphaBuilder
             bool isBrute = brutes != null && i < brutes.Length && brutes[i];
             bool canShoot = shooters == null || i >= shooters.Length || shooters[i];
             Sprite sprite = isBrute ? bruteSprite : gruntSprite;
-            Vector2 scale = isBrute ? new Vector2(1.32f, 1.45f) : new Vector2(0.85f, 1.1f);
+            Vector2 scale = isBrute ? new Vector2(1.05f, 1.45f) : new Vector2(0.58f, 1.1f);
             int health = isBrute ? 10 : 2;
             int score = isBrute ? 500 : 120;
 
@@ -1386,6 +1758,195 @@ public static class RemnantSquadAlphaBuilder
         }
     }
 
+    private static void CreateEnvironmentArtPass(Sprite fallbackStructure, Sprite fallbackProp, Sprite waterSprite)
+    {
+        Sprite subwayBackground = LoadGenericRunGunSprite(GenericRunGunPath + "/Assets_area_1/Background/subway_BG.png", 32f);
+        Sprite subwayWall = LoadGenericRunGunSprite(GenericRunGunPath + "/Assets_area_1/Background/wall_subway.png", 48f);
+        Sprite cloudsNear = LoadGenericRunGunSprite(GenericRunGunPath + "/Assets_area_2/backgrounds/nuvens_1.png", 32f);
+        Sprite cloudsMid = LoadGenericRunGunSprite(GenericRunGunPath + "/Assets_area_2/backgrounds/nuvens_2.png", 32f);
+        Sprite cloudsFar = LoadGenericRunGunSprite(GenericRunGunPath + "/Assets_area_2/backgrounds/nuvens_3.png", 32f);
+
+        CreateBackdropRun("ENV_Interior_TrainingOutpost", subwayBackground, -13f, 63f, -0.45f, new Vector2(1.05f, 1.05f), new Color(0.82f, 0.96f, 0.82f, 0.86f), -18);
+        CreateBackdropRun("ENV_Exterior_LakeClouds_Far", cloudsFar, 63f, 116f, -5.85f, new Vector2(1.35f, 1.08f), new Color(1f, 0.82f, 0.72f, 0.92f), -20);
+        CreateBackdropRun("ENV_Exterior_RunwayClouds_Mid", cloudsMid, 112f, 150f, -0.5f, new Vector2(1.35f, 1.05f), new Color(1f, 0.82f, 0.72f, 0.9f), -20);
+        CreateBackdropRun("ENV_Interior_HangarComms", subwayWall, 149f, 223f, -0.15f, new Vector2(0.9f, 0.9f), new Color(0.82f, 0.98f, 0.88f, 0.88f), -18);
+        CreateBackdropRun("ENV_Exterior_PipelineCarrierClouds", cloudsNear, 222f, 310f, -0.2f, new Vector2(1.35f, 1.08f), new Color(1f, 0.82f, 0.72f, 0.9f), -20);
+        CreateBackdropRun("ENV_Exterior_RailCliffClouds", cloudsMid, 306f, 386f, -0.3f, new Vector2(1.35f, 1.08f), new Color(1f, 0.82f, 0.72f, 0.9f), -20);
+
+        Sprite panel = grgOutdoorRuinPanelSprite != null ? grgOutdoorRuinPanelSprite : fallbackStructure;
+        CreateDecorRun("ENV_RuinWall_BridgeCamp", panel, 8f, 43f, -1.2f, new Vector2(7f, 4.8f), new Color(0.72f, 0.86f, 0.68f, 0.88f), -9);
+        CreateDecorRun("ENV_RuinWall_LakeRetaining", panel, 77f, 104f, -9.8f, new Vector2(6.8f, 4.9f), new Color(0.68f, 0.84f, 0.72f, 0.9f), -9);
+        CreateDecorRun("ENV_RuinWall_Runway", panel, 114f, 149f, -1.25f, new Vector2(7.2f, 4.6f), new Color(0.72f, 0.84f, 0.68f, 0.88f), -9);
+        CreateDecorRun("ENV_RuinWall_RailYard", panel, 309f, 351f, -1.25f, new Vector2(7.2f, 4.6f), new Color(0.72f, 0.84f, 0.68f, 0.88f), -9);
+        CreateDecorRun("ENV_RuinWall_CliffLift", panel, 351f, 386f, 0.2f, new Vector2(7.2f, 4.9f), new Color(0.72f, 0.84f, 0.68f, 0.88f), -9);
+
+        CreateInteriorTechPanels(fallbackStructure);
+        CreateExteriorProps(fallbackProp, waterSprite);
+        CreateSpawnDoorSilhouettes(fallbackStructure);
+    }
+
+    private static void CreateInteriorTechPanels(Sprite fallbackStructure)
+    {
+        Sprite pipe = grgOutdoorPipeSprite != null ? grgOutdoorPipeSprite : fallbackStructure;
+        Sprite support = grgOutdoorSupportSprite != null ? grgOutdoorSupportSprite : fallbackStructure;
+
+        CreateDecorRun("ENV_Pipes_Training", pipe, -10f, 58f, -0.95f, new Vector2(4.8f, 0.5f), new Color(0.65f, 0.78f, 0.68f, 0.72f), -7);
+        CreateDecorRun("ENV_Pipes_Hangar", pipe, 150f, 184f, -0.65f, new Vector2(5.2f, 0.55f), new Color(0.65f, 0.78f, 0.72f, 0.74f), -7);
+        CreateDecorRun("ENV_Pipes_Comms", pipe, 194f, 220f, 0.7f, new Vector2(4.8f, 0.5f), new Color(0.65f, 0.78f, 0.72f, 0.74f), -7);
+        CreateDecorRun("ENV_Pipes_Pipeline", pipe, 228f, 269f, -0.25f, new Vector2(5.4f, 0.55f), new Color(0.68f, 0.78f, 0.78f, 0.76f), -7);
+
+        CreateDecorSprite("ENV_Comms_LeftSupport", support, new Vector2(201.2f, -0.55f), new Vector2(1.1f, 4.2f), new Color(0.55f, 0.68f, 0.7f, 0.82f), -6, false);
+        CreateDecorSprite("ENV_Comms_RightSupport", support, new Vector2(212.4f, -0.4f), new Vector2(1.1f, 4.5f), new Color(0.55f, 0.68f, 0.7f, 0.82f), -6, true);
+        CreateDecorSprite("ENV_AntiAir_ServiceSupport", support, new Vector2(144.7f, -0.75f), new Vector2(1.2f, 4.7f), new Color(0.55f, 0.68f, 0.7f, 0.82f), -6, false);
+        CreateDecorSprite("ENV_FinalLift_ServiceSupport", support, new Vector2(377.4f, 0.2f), new Vector2(1.2f, 4.5f), new Color(0.55f, 0.68f, 0.7f, 0.82f), -6, true);
+    }
+
+    private static void CreateExteriorProps(Sprite fallbackProp, Sprite waterSprite)
+    {
+        Sprite railing = grgOutdoorRailingSprite != null ? grgOutdoorRailingSprite : fallbackProp;
+        Sprite lamp = grgOutdoorLampSprite != null ? grgOutdoorLampSprite : fallbackProp;
+        Sprite cone = grgOutdoorConeSprite != null ? grgOutdoorConeSprite : fallbackProp;
+        Sprite sign = grgOutdoorSignSprite != null ? grgOutdoorSignSprite : fallbackProp;
+        Sprite support = grgOutdoorSupportSprite != null ? grgOutdoorSupportSprite : fallbackProp;
+
+        float[] lampXs = new float[] { -7.5f, 1.8f, 13.4f, 25.4f, 48.5f, 116.2f, 129.5f, 318.5f, 341.2f, 360.4f, 374.2f };
+        for (int i = 0; i < lampXs.Length; i++)
+            CreateDecorSprite("ENV_Lamp_" + i.ToString("00"), lamp, new Vector2(lampXs[i], -2.75f), new Vector2(0.8f, 2.4f), Color.white, -3, i % 2 == 1);
+
+        CreateDecorRun("ENV_Bridge_Railing", railing, 10.2f, 21.8f, -3.15f, new Vector2(2.8f, 0.75f), Color.white, 3);
+        CreateDecorRun("ENV_POW_Railing", railing, 22.5f, 30.8f, -3.12f, new Vector2(2.7f, 0.75f), Color.white, 3);
+        CreateDecorRun("ENV_Lake_Bridge_Railing", railing, 82f, 96.3f, -7.62f, new Vector2(2.9f, 0.72f), Color.white, 3);
+        CreateDecorRun("ENV_Runway_Railing", railing, 118f, 134.6f, -3.15f, new Vector2(2.9f, 0.72f), Color.white, 3);
+        CreateDecorRun("ENV_RailYard_Railing_A", railing, 314f, 328f, -3.15f, new Vector2(2.9f, 0.72f), Color.white, 3);
+        CreateDecorRun("ENV_RailYard_Railing_B", railing, 336f, 348f, -3.15f, new Vector2(2.9f, 0.72f), Color.white, 3);
+
+        CreateDecorSprite("ENV_Acid_WarningSign", sign, new Vector2(31.8f, -2.55f), new Vector2(0.8f, 1.2f), Color.white, 4, false);
+        CreateDecorSprite("ENV_Lake_WarningSign", sign, new Vector2(80.2f, -7.05f), new Vector2(0.8f, 1.2f), Color.white, 4, false);
+        CreateDecorSprite("ENV_Runway_WarningSign", sign, new Vector2(133.8f, -2.55f), new Vector2(0.8f, 1.2f), Color.white, 4, true);
+        CreateDecorSprite("ENV_FinalLift_WarningSign", sign, new Vector2(371.2f, -0.25f), new Vector2(0.8f, 1.2f), Color.white, 4, false);
+
+        float[] coneXs = new float[] { 33.2f, 34.3f, 37.7f, 39f, 81.1f, 96.8f, 122.5f, 126.2f, 141.4f, 149.2f, 368.4f };
+        float[] coneYs = new float[] { -3.35f, -3.35f, -3.35f, -3.35f, -7.95f, -7.95f, -3.35f, -3.35f, -3.35f, -3.35f, -0.9f };
+        for (int i = 0; i < coneXs.Length; i++)
+            CreateDecorSprite("ENV_Cone_" + i.ToString("00"), cone, new Vector2(coneXs[i], coneYs[i]), new Vector2(0.38f, 0.7f), Color.white, 4, i % 2 == 0);
+
+        CreateDecorSprite("ENV_Bridge_UnderSupport_01", support, new Vector2(14.6f, -4.35f), new Vector2(1.2f, 2.2f), new Color(0.82f, 0.78f, 0.6f, 0.92f), -2, false);
+        CreateDecorSprite("ENV_Lake_BridgeSupport_01", support, new Vector2(85.5f, -9.1f), new Vector2(1.25f, 2.9f), new Color(0.82f, 0.78f, 0.6f, 0.92f), -2, false);
+        CreateDecorSprite("ENV_Lake_BridgeSupport_02", support, new Vector2(92.8f, -9.1f), new Vector2(1.25f, 2.9f), new Color(0.82f, 0.78f, 0.6f, 0.92f), -2, true);
+        CreateDecorSprite("ENV_Runway_ServiceSupport_01", support, new Vector2(125.2f, -4.2f), new Vector2(1.15f, 2.1f), new Color(0.82f, 0.78f, 0.6f, 0.92f), -2, false);
+
+        if (waterSprite != null)
+            CreateDecorSprite("ENV_Lake_Surface_Glint", waterSprite, new Vector2(89.3f, -8.45f), new Vector2(15.2f, 0.18f), new Color(0.72f, 0.9f, 1f, 0.55f), 4, false);
+    }
+
+    private static void CreateSpawnDoorSilhouettes(Sprite fallbackStructure)
+    {
+        Sprite door = grgOutdoorDoorSprite != null ? grgOutdoorDoorSprite : fallbackStructure;
+        Vector2[] doors = new Vector2[]
+        {
+            new Vector2(2.2f, -2.65f), new Vector2(8.2f, -2.65f), new Vector2(22.2f, -2.65f), new Vector2(30.8f, -2.65f),
+            new Vector2(151.2f, -2.65f), new Vector2(168.2f, -2.65f), new Vector2(194.2f, -2.65f), new Vector2(221.8f, -1.4f),
+            new Vector2(315.4f, -2.65f), new Vector2(337.2f, -2.65f), new Vector2(354.5f, -1.8f), new Vector2(366.9f, -0.1f)
+        };
+
+        for (int i = 0; i < doors.Length; i++)
+            CreateDecorSprite("ENV_SpawnDoor_" + i.ToString("00"), door, doors[i], new Vector2(0.95f, 2.0f), new Color(0.56f, 0.68f, 0.66f, 0.82f), -4, i % 2 == 1);
+    }
+
+    private static void CreateBackdropRun(string name, Sprite sprite, float startX, float endX, float y, Vector2 scale, Color tint, int sortingOrder)
+    {
+        if (sprite == null)
+            return;
+
+        float step = Mathf.Max(2f, sprite.bounds.size.x * scale.x * 0.96f);
+        int index = 0;
+        for (float x = startX; x <= endX; x += step)
+            CreateBackdropSprite(name + "_" + index++.ToString("00"), sprite, new Vector2(x, y), scale, tint, sortingOrder);
+    }
+
+    private static void CreateDecorRun(string name, Sprite sprite, float startX, float endX, float y, Vector2 targetSize, Color tint, int sortingOrder)
+    {
+        if (sprite == null)
+            return;
+
+        float step = Mathf.Max(0.8f, targetSize.x * 0.92f);
+        int index = 0;
+        for (float x = startX; x <= endX; x += step)
+            CreateDecorSprite(name + "_" + index++.ToString("00"), sprite, new Vector2(x, y), targetSize, tint, sortingOrder, index % 2 == 0);
+    }
+
+    private static GameObject CreateDecorSprite(string name, Sprite sprite, Vector2 position, Vector2 targetSize, Color tint, int sortingOrder, bool flipX)
+    {
+        if (sprite == null)
+            return null;
+
+        Vector2 spriteSize = sprite.bounds.size;
+        Vector2 scale = new Vector2(
+            targetSize.x / Mathf.Max(0.01f, spriteSize.x),
+            targetSize.y / Mathf.Max(0.01f, spriteSize.y));
+
+        GameObject decor = CreateBoxObject(name, sprite, position, scale, "Default");
+        SpriteRenderer renderer = decor.GetComponent<SpriteRenderer>();
+        if (renderer != null)
+        {
+            renderer.color = tint;
+            renderer.sortingOrder = sortingOrder;
+            renderer.flipX = flipX;
+        }
+
+        return decor;
+    }
+
+    private static void CreateGenericRunGunBackdrops()
+    {
+        Sprite subwayBackground = LoadGenericRunGunSprite(GenericRunGunPath + "/Assets_area_1/Background/subway_BG.png", 32f);
+        Sprite subwayWall = LoadGenericRunGunSprite(GenericRunGunPath + "/Assets_area_1/Background/wall_subway.png", 48f);
+        Sprite cloudsNear = LoadGenericRunGunSprite(GenericRunGunPath + "/Assets_area_2/backgrounds/nuvens_1.png", 32f);
+        Sprite cloudsMid = LoadGenericRunGunSprite(GenericRunGunPath + "/Assets_area_2/backgrounds/nuvens_2.png", 32f);
+        Sprite cloudsFar = LoadGenericRunGunSprite(GenericRunGunPath + "/Assets_area_2/backgrounds/nuvens_3.png", 32f);
+
+        Color exteriorTint = new Color(0.9f, 1f, 1f, 1f);
+        Color interiorTint = new Color(0.95f, 1f, 0.95f, 1f);
+        Color wallTint = new Color(0.95f, 1f, 0.9f, 1f);
+
+        CreateBackdropSprite("GRG_Backdrop_Training_Wall", subwayBackground, new Vector2(-3f, -0.2f), Vector2.one, wallTint, -12);
+        CreateBackdropSprite("GRG_Backdrop_Outpost_Wall", subwayBackground, new Vector2(12f, -0.2f), Vector2.one, wallTint, -12);
+        CreateBackdropSprite("GRG_Backdrop_POW_SubwayWall", subwayWall, new Vector2(27f, -0.15f), Vector2.one, interiorTint, -13);
+        CreateBackdropSprite("GRG_Backdrop_Gate_SubwayWall", subwayWall, new Vector2(50f, -0.15f), Vector2.one, interiorTint, -13);
+        CreateBackdropSprite("GRG_Backdrop_Lake_Clouds_Far", cloudsFar, new Vector2(84f, -6.1f), new Vector2(1.2f, 1f), exteriorTint, -14);
+        CreateBackdropSprite("GRG_Backdrop_Lake_Clouds_Near", cloudsNear, new Vector2(101f, -5.9f), new Vector2(1.2f, 1f), exteriorTint, -13);
+        CreateBackdropSprite("GRG_Backdrop_Depot_Wall", subwayBackground, new Vector2(119f, -0.2f), Vector2.one, wallTint, -12);
+        CreateBackdropSprite("GRG_Backdrop_Runway_Clouds_Mid", cloudsMid, new Vector2(137f, -0.2f), new Vector2(1.35f, 1f), exteriorTint, -14);
+        CreateBackdropSprite("GRG_Backdrop_Hangar_Wall_Left", subwayWall, new Vector2(158f, -0.15f), Vector2.one, interiorTint, -13);
+        CreateBackdropSprite("GRG_Backdrop_Hangar_Wall_Right", subwayWall, new Vector2(175f, -0.15f), Vector2.one, interiorTint, -13);
+        CreateBackdropSprite("GRG_Backdrop_Comms_Wall", subwayWall, new Vector2(207f, -0.15f), new Vector2(1.15f, 1f), interiorTint, -13);
+        CreateBackdropSprite("GRG_Backdrop_Pipeline_Clouds", cloudsNear, new Vector2(248f, -0.25f), new Vector2(1.45f, 1f), exteriorTint, -14);
+        CreateBackdropSprite("GRG_Backdrop_Carrier_Wall_A", subwayBackground, new Vector2(284f, 0.05f), new Vector2(1.25f, 1f), wallTint, -12);
+        CreateBackdropSprite("GRG_Backdrop_Carrier_Wall_B", subwayBackground, new Vector2(302f, 0.05f), new Vector2(1.25f, 1f), wallTint, -12);
+        CreateBackdropSprite("GRG_Backdrop_RailYard_Clouds_A", cloudsMid, new Vector2(324f, -0.15f), new Vector2(1.35f, 1f), exteriorTint, -14);
+        CreateBackdropSprite("GRG_Backdrop_RailYard_Clouds_B", cloudsNear, new Vector2(344f, -0.1f), new Vector2(1.35f, 1f), exteriorTint, -13);
+        CreateBackdropSprite("GRG_Backdrop_Cliff_Clouds", cloudsFar, new Vector2(363f, 0.65f), new Vector2(1.2f, 1f), exteriorTint, -14);
+    }
+
+    private static void CreateBackdropSprite(string name, Sprite sprite, Vector2 position, Vector2 scale, Color tint, int sortingOrder)
+    {
+        if (sprite == null)
+            return;
+
+        GameObject backdrop = CreateBoxObject(name, sprite, position, scale, "Default");
+        SpriteRenderer renderer = backdrop.GetComponent<SpriteRenderer>();
+        if (renderer != null)
+        {
+            renderer.sortingOrder = sortingOrder;
+            renderer.color = tint;
+        }
+    }
+
+    private static bool IsGenericRunGunSprite(Sprite sprite)
+    {
+        return sprite != null && sprite.name.StartsWith("GRG_");
+    }
+
     private static void CreateAlienMarker(string name, Sprite sprite, Vector2 position, Vector2 scale, Color color, string labelText)
     {
         GameObject marker = CreateBoxObject(name, sprite, position, scale, "Ground");
@@ -1398,6 +1959,7 @@ public static class RemnantSquadAlphaBuilder
 
         GameObject label = CreateWorldText(name + "_Label", labelText, new Vector3(position.x, position.y + scale.y * 0.5f + 0.35f, 0f), 0.16f);
         label.transform.SetParent(marker.transform);
+        label.SetActive(false);
     }
 
     private static void CreateHazard(string name, Sprite sprite, Vector2 position, Vector2 scale)
@@ -1417,6 +1979,7 @@ public static class RemnantSquadAlphaBuilder
 
         GameObject label = CreateWorldText(name + "_Label", "HAZARD", new Vector3(position.x, position.y + 0.5f, 0f), 0.18f);
         label.transform.SetParent(hazard.transform);
+        label.SetActive(false);
     }
 
     private static void CreatePickup(string name, Sprite sprite, Vector2 position, int healthReward, int ammoReward, int bombReward, int scoreReward)
@@ -1439,6 +2002,7 @@ public static class RemnantSquadAlphaBuilder
         string label = healthReward > 0 ? "HP" : ammoReward > 0 ? "AMMO" : bombReward > 0 ? "BOMB" : "SCORE";
         GameObject text = CreateWorldText(name + "_Label", label, new Vector3(position.x, position.y + 0.55f, 0f), 0.18f);
         text.transform.SetParent(pickup.transform);
+        text.SetActive(false);
     }
 
     private static void CreateCheckpoint(string name, Sprite sprite, Vector2 position, Vector2 respawnPosition)
@@ -1476,6 +2040,7 @@ public static class RemnantSquadAlphaBuilder
 
         GameObject label = CreateWorldText(name + "_Label", "CHECKPOINT", new Vector3(position.x, position.y + 1f, 0f), 0.18f);
         label.transform.SetParent(checkpoint.transform);
+        label.SetActive(false);
     }
 
     private static GameObject CreatePlayerProjectilePrefab(Sprite sprite, GameObject hitEffectPrefab)
@@ -1614,12 +2179,12 @@ public static class RemnantSquadAlphaBuilder
         rb.freezeRotation = true;
 
         BoxCollider2D playerCollider = player.AddComponent<BoxCollider2D>();
-        playerCollider.size = new Vector2(0.55f, 0.95f);
-        playerCollider.offset = new Vector2(0f, -0.05f);
+        playerCollider.size = new Vector2(0.55f, 1.05f);
+        playerCollider.offset = new Vector2(0f, -0.16f);
 
         GameObject groundCheck = new GameObject("GroundCheck");
         groundCheck.transform.SetParent(player.transform);
-        groundCheck.transform.localPosition = new Vector3(0f, -0.56f, 0f);
+        groundCheck.transform.localPosition = new Vector3(0f, -0.72f, 0f);
 
         GameObject firePoint = new GameObject("FirePoint");
         firePoint.transform.SetParent(player.transform);
@@ -1631,14 +2196,14 @@ public static class RemnantSquadAlphaBuilder
 
         GameObject legsObject = new GameObject("Legs");
         legsObject.transform.SetParent(player.transform);
-        legsObject.transform.localPosition = Vector3.zero;
+        legsObject.transform.localPosition = new Vector3(0f, -0.24f, 0f);
         SpriteRenderer legsRenderer = legsObject.AddComponent<SpriteRenderer>();
         legsRenderer.sprite = sprite;
         legsRenderer.sortingOrder = 2;
 
         GameObject torsoObject = new GameObject("Torso");
         torsoObject.transform.SetParent(player.transform);
-        torsoObject.transform.localPosition = new Vector3(0f, 0.16f, 0f);
+        torsoObject.transform.localPosition = new Vector3(0f, -0.24f, 0f);
         SpriteRenderer torsoRenderer = torsoObject.AddComponent<SpriteRenderer>();
         torsoRenderer.sprite = LoadSprite(NeraPath + "/torso/idle/torso_idle0.png");
         torsoRenderer.sortingOrder = 3;
@@ -1648,7 +2213,9 @@ public static class RemnantSquadAlphaBuilder
 
         PlayerController2D controller = player.AddComponent<PlayerController2D>();
         controller.moveSpeed = 3.5f;
+        controller.jumpForce = 10.5f;
         controller.crouchMoveMultiplier = 0.5f;
+        controller.groundCheckRadius = 0.2f;
         controller.groundCheck = groundCheck.transform;
         controller.groundLayer = LayerMask.GetMask("Ground");
 
@@ -1678,8 +2245,8 @@ public static class RemnantSquadAlphaBuilder
         NeraPlayerVisual neraVisual = player.AddComponent<NeraPlayerVisual>();
         neraVisual.legsRenderer = legsRenderer;
         neraVisual.torsoRenderer = torsoRenderer;
-        neraVisual.torsoOffset = Vector3.zero;
-        neraVisual.runShootTorsoOffset = Vector3.zero;
+        neraVisual.torsoOffset = new Vector3(0f, -0.24f, 0f);
+        neraVisual.runShootTorsoOffset = new Vector3(0f, -0.24f, 0f);
         neraVisual.crouchMoveFrameRate = 6f;
         neraVisual.meleeFrameRate = 22f;
         neraVisual.legsIdle = LoadSprites(NeraPath + "/legs/idle/leg_idle.png");
@@ -1705,12 +2272,15 @@ public static class RemnantSquadAlphaBuilder
 
     private static GameObject CreateEnemy(string name, Sprite sprite, GameObject enemyProjectilePrefab, GameObject deathEffectPrefab, Vector2 position, int health, int score, bool canShoot)
     {
-        return CreateEnemy(name, sprite, enemyProjectilePrefab, deathEffectPrefab, position, health, score, canShoot, new Vector2(0.85f, 1.1f));
+        return CreateEnemy(name, sprite, enemyProjectilePrefab, deathEffectPrefab, position, health, score, canShoot, new Vector2(0.58f, 1.1f));
     }
 
     private static GameObject CreateEnemy(string name, Sprite sprite, GameObject enemyProjectilePrefab, GameObject deathEffectPrefab, Vector2 position, int health, int score, bool canShoot, Vector2 scale)
     {
         GameObject enemy = CreateBoxObject(name, sprite, position, scale, "Enemy");
+        SpriteRenderer enemyRenderer = enemy.GetComponent<SpriteRenderer>();
+        if (enemyRenderer != null && sprite != null && sprite.name.StartsWith("GRG_"))
+            enemyRenderer.color = scale.x > 1f ? new Color(0.72f, 0.95f, 1f, 1f) : new Color(0.78f, 1f, 0.66f, 1f);
 
         Rigidbody2D rb = enemy.AddComponent<Rigidbody2D>();
         rb.gravityScale = 3f;
@@ -1730,24 +2300,29 @@ public static class RemnantSquadAlphaBuilder
 
         GameObject groundCheck = new GameObject("GroundCheck");
         groundCheck.transform.SetParent(enemy.transform);
-        groundCheck.transform.localPosition = new Vector3(-0.45f, -0.58f, 0f);
+        groundCheck.transform.localPosition = new Vector3(-0.75f, -0.58f, 0f);
 
         GameObject wallCheck = new GameObject("WallCheck");
         wallCheck.transform.SetParent(enemy.transform);
-        wallCheck.transform.localPosition = new Vector3(-0.55f, 0f, 0f);
+        wallCheck.transform.localPosition = new Vector3(-0.85f, 0f, 0f);
 
         EnemyPatrol2D patrol = enemy.AddComponent<EnemyPatrol2D>();
         patrol.moveSpeed = scale.x > 1f ? 0.6f : 1.25f;
         patrol.canJumpObstacles = true;
-        patrol.jumpForce = scale.x > 1f ? 4.6f : 5.6f;
+        patrol.jumpForce = scale.x > 1f ? 6.6f : 7.4f;
         patrol.jumpCooldown = scale.x > 1f ? 1.25f : 0.85f;
         patrol.groundCheck = groundCheck.transform;
         patrol.wallCheck = wallCheck.transform;
         patrol.groundLayer = LayerMask.GetMask("Ground");
         patrol.obstacleLayer = LayerMask.GetMask("Ground");
-        patrol.detectionRange = scale.x > 1f ? 10f : 12f;
-        patrol.preferredShootDistance = scale.x > 1f ? 6.5f : 5.5f;
-        patrol.closePressureDistance = scale.x > 1f ? 3f : 2.25f;
+        patrol.enemyLayer = LayerMask.GetMask("Enemy");
+        patrol.detectionRange = scale.x > 1f ? 55f : 70f;
+        patrol.preferredShootDistance = scale.x > 1f ? 10.5f : 9f;
+        patrol.closePressureDistance = scale.x > 1f ? 1.8f : 1.25f;
+        patrol.rushStopDistance = scale.x > 1f ? 1.55f : 1.15f;
+        patrol.canDropToReachPlayer = true;
+        patrol.dropWhenPlayerBelowBy = scale.x > 1f ? 0.95f : 0.75f;
+        patrol.dropHorizontalWindow = scale.x > 1f ? 11f : 15f;
 
         if (canShoot)
         {
@@ -1758,8 +2333,8 @@ public static class RemnantSquadAlphaBuilder
             EnemyShooter2D shooter = enemy.AddComponent<EnemyShooter2D>();
             shooter.enemyProjectilePrefab = enemyProjectilePrefab;
             shooter.firePoint = firePoint.transform;
-            shooter.range = scale.x > 1f ? 9f : 8f;
-            shooter.fireCooldown = scale.x > 1f ? 2.8f : 1.7f;
+            shooter.range = scale.x > 1f ? 12f : 11f;
+            shooter.fireCooldown = scale.x > 1f ? 2.2f : 1.25f;
             shooter.burstCount = scale.x > 1f ? 3 : 1;
             shooter.burstSpacing = scale.x > 1f ? 0.22f : 0.16f;
             shooter.projectileScaleMultiplier = scale.x > 1f ? 1.45f : 1f;
@@ -1773,9 +2348,6 @@ public static class RemnantSquadAlphaBuilder
 
         EnemyAnimationDriver animationDriver = enemy.AddComponent<EnemyAnimationDriver>();
         animationDriver.isBrute = scale.x > 1f;
-
-        if (scale.x <= 1f)
-            AddNeraEnemyVisual(enemy);
 
         return enemy;
     }
@@ -1863,6 +2435,7 @@ public static class RemnantSquadAlphaBuilder
     private static GameObject CreateDesignLabel(string name, string text, Vector3 position)
     {
         GameObject label = CreateWorldText(name, text, position, 0.16f);
+        label.SetActive(false);
         TextMesh textMesh = label.GetComponent<TextMesh>();
         if (textMesh != null)
         {
@@ -2175,7 +2748,7 @@ public static class RemnantSquadAlphaBuilder
         EndLevelTrigger trigger = endTrigger.AddComponent<EndLevelTrigger>();
         trigger.alphaCompletePanel = completePanel;
 
-        CreateWorldText("End_Label", "END", new Vector3(position.x, position.y + 1.2f, 0f), 0.3f);
+        CreateWorldText("End_Label", "END", new Vector3(position.x, position.y + 1.2f, 0f), 0.3f).SetActive(false);
     }
 
     private static void CreateCamera()
@@ -2184,7 +2757,7 @@ public static class RemnantSquadAlphaBuilder
 
         Camera camera = cameraObject.AddComponent<Camera>();
         camera.orthographic = true;
-        camera.orthographicSize = 5f;
+        camera.orthographicSize = 4.25f;
         camera.backgroundColor = new Color(0.08f, 0.09f, 0.13f, 1f);
 
         cameraObject.tag = "MainCamera";

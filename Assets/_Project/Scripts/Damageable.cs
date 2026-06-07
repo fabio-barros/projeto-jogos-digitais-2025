@@ -23,6 +23,12 @@ public class Damageable : MonoBehaviour
     public int CurrentHealth { get { return Mathf.CeilToInt(currentHealth); } }
     public bool IsDead { get { return isDead; } }
 
+    public void ResetHealthToMax()
+    {
+        currentHealth = maxHealth;
+        isDead = false;
+    }
+
     private void Awake()
     {
         currentHealth = maxHealth;
@@ -71,11 +77,26 @@ public class Damageable : MonoBehaviour
         onDeath?.Invoke();
 
         if (deathEffectPrefab != null)
-            Instantiate(deathEffectPrefab, transform.position, Quaternion.identity);
+            ObjectPool2D.Spawn(deathEffectPrefab, transform.position, Quaternion.identity);
 
         Collider2D[] colliders = GetComponents<Collider2D>();
         for (int i = 0; i < colliders.Length; i++)
             colliders[i].enabled = false;
+
+        if (rb != null)
+        {
+            rb.linearVelocity = Vector2.zero;
+            rb.simulated = false;
+        }
+
+        if (spriteRenderers != null)
+        {
+            for (int i = 0; i < spriteRenderers.Length; i++)
+            {
+                if (spriteRenderers[i] != null)
+                    spriteRenderers[i].enabled = false;
+            }
+        }
 
         Destroy(gameObject, deathDelay);
     }

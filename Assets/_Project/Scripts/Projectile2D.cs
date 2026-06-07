@@ -10,6 +10,7 @@ public class Projectile2D : MonoBehaviour
 
     private Vector2 direction = Vector2.right;
     private Rigidbody2D rb;
+    private float lifetimeTimer;
 
     private void Awake()
     {
@@ -31,14 +32,21 @@ public class Projectile2D : MonoBehaviour
         ApplyVelocity();
     }
 
-    private void Start()
+    private void OnEnable()
     {
+        lifetimeTimer = lifetime;
         ApplyVelocity();
-        Destroy(gameObject, lifetime);
     }
 
     private void Update()
     {
+        lifetimeTimer -= Time.deltaTime;
+        if (lifetimeTimer <= 0f)
+        {
+            Despawn();
+            return;
+        }
+
         if (rb == null)
             transform.Translate(direction * speed * Time.deltaTime, Space.World);
     }
@@ -50,26 +58,34 @@ public class Projectile2D : MonoBehaviour
         {
             damageable.TakeDamage(damage, direction);
             SpawnHitEffect();
-            Destroy(gameObject);
+            Despawn();
             return;
         }
 
         if (((1 << collision.gameObject.layer) & hitLayers) != 0)
         {
             SpawnHitEffect();
-            Destroy(gameObject);
+            Despawn();
         }
     }
 
     private void SpawnHitEffect()
     {
         if (hitEffectPrefab != null)
-            Instantiate(hitEffectPrefab, transform.position, Quaternion.identity);
+            ObjectPool2D.Spawn(hitEffectPrefab, transform.position, Quaternion.identity);
     }
 
     private void ApplyVelocity()
     {
         if (rb != null)
             rb.linearVelocity = direction * speed;
+    }
+
+    private void Despawn()
+    {
+        if (rb != null)
+            rb.linearVelocity = Vector2.zero;
+
+        ObjectPool2D.Despawn(gameObject);
     }
 }
