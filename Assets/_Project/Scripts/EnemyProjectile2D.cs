@@ -27,6 +27,31 @@ public class EnemyProjectile2D : MonoBehaviour
         ApplyVelocity();
     }
 
+    public void ApplyVariant(float speedOverride, int damageOverride, RuntimeAnimatorController animationController, Vector2 scaleOverride, Color tint)
+    {
+        if (speedOverride > 0f)
+            speed = speedOverride;
+
+        if (damageOverride > 0)
+            damage = damageOverride;
+
+        if (scaleOverride.x > 0f && scaleOverride.y > 0f)
+            transform.localScale = new Vector3(scaleOverride.x, scaleOverride.y, transform.localScale.z);
+
+        SpriteRenderer spriteRenderer = GetComponent<SpriteRenderer>();
+        if (spriteRenderer != null)
+            spriteRenderer.color = tint;
+
+        if (animationController != null)
+        {
+            Animator animator = GetComponent<Animator>();
+            if (animator == null)
+                animator = gameObject.AddComponent<Animator>();
+
+            animator.runtimeAnimatorController = animationController;
+        }
+    }
+
     private void OnEnable()
     {
         lifetimeTimer = lifetime;

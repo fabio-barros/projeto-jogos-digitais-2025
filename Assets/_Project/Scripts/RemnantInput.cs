@@ -106,6 +106,14 @@ public static class RemnantInput
             || Input.GetKeyDown(KeyCode.JoystickButton7);
     }
 
+    public static bool MenuConfirmDown()
+    {
+        return RestartDown()
+            || Input.GetKeyDown(KeyCode.Space)
+            || Input.GetKeyDown(KeyCode.JoystickButton0)
+            || Input.GetMouseButtonDown(0);
+    }
+
     public static bool InteractDown()
     {
         return Input.GetKeyDown(KeyCode.E)

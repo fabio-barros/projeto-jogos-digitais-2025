@@ -14,7 +14,12 @@ public class EnemyDefinition2D : ScriptableObject
     public float fireCooldown = 1.4f;
     public int burstCount = 1;
     public bool canShoot = true;
-    public bool canJumpObstacles = true;
+    public bool canJumpObstacles = false;
+    public bool useRunNGunStationaryBehaviour = false;
+    public bool useRunNGunShootCycle = true;
+    public bool allowVerticalShots = true;
+    public bool applyRunNGunShotVariant = true;
+    public EnemyShooter2D.RunNGunShotVariant shotVariant = EnemyShooter2D.RunNGunShotVariant.DefaultRifle;
 
     public void ApplyTo(GameObject enemy)
     {
@@ -38,6 +43,7 @@ public class EnemyDefinition2D : ScriptableObject
             patrol.closePressureDistance = closePressureDistance;
             patrol.jumpForce = jumpForce;
             patrol.canJumpObstacles = canJumpObstacles;
+            patrol.useRunNGunStationaryBehaviour = useRunNGunStationaryBehaviour;
         }
 
         EnemyShooter2D shooter = enemy.GetComponent<EnemyShooter2D>();
@@ -46,6 +52,11 @@ public class EnemyDefinition2D : ScriptableObject
             shooter.enabled = canShoot;
             shooter.fireCooldown = fireCooldown;
             shooter.burstCount = burstCount;
+            shooter.useRunNGunShootCycle = useRunNGunShootCycle;
+            shooter.allowVerticalShots = allowVerticalShots;
+            shooter.applyRunNGunShotVariant = applyRunNGunShotVariant;
+            shooter.shotVariant = shotVariant;
+            shooter.ApplyRunNGunShotVariant();
         }
     }
 }

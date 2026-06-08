@@ -14,7 +14,10 @@ public class EndLevelTrigger : MonoBehaviour
         if (collision.GetComponent<PlayerController2D>() != null)
         {
             if (alphaCompletePanel != null) alphaCompletePanel.SetActive(true);
-            Time.timeScale = 0f;
+            if (GameManager.Instance != null)
+                GameManager.Instance.CompleteLevel();
+            else
+                Time.timeScale = 0f;
         }
     }
 }

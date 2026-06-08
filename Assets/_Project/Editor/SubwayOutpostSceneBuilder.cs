@@ -360,9 +360,9 @@ public static class SubwayOutpostSceneBuilder
 
     private static void BuildEnemies(GameObject enemyProjectilePrefab, GameObject deathPrefab)
     {
-        Sprite[] gruntFrames = SliceHorizontalFrames("ARGrunt", PackPath + "/Enemies/ARMob.png", 32, 38, 24, 32f);
-        Sprite[] bruteFrames = SliceHorizontalFrames("RPGBrute", PackPath + "/Enemies/RPGmob.png", 44, 44, 10, 32f);
-        Sprite[] sniperFrames = SliceHorizontalFrames("Sniper", PackPath + "/Enemies/SniperMob.png", 44, 44, 14, 32f);
+        Sprite[] gruntFrames = SliceHorizontalFrames("ARGrunt", PackPath + "/Enemies/ARMob.png", 32, 38, 24, 24f);
+        Sprite[] bruteFrames = SliceHorizontalFrames("RPGBrute", PackPath + "/Enemies/RPGmob.png", 44, 44, 10, 24f);
+        Sprite[] sniperFrames = SliceHorizontalFrames("Sniper", PackPath + "/Enemies/SniperMob.png", 44, 44, 14, 24f);
 
         RuntimeAnimatorController gruntController = CreateEnemyAnimator("Subway_ARGrunt", gruntFrames);
         RuntimeAnimatorController bruteController = CreateEnemyAnimator("Subway_RPGBrute", bruteFrames);

@@ -17,6 +17,7 @@ public class EnemyWaveTrigger2D : MonoBehaviour
     public LayerMask spawnBlockLayers;
     public Vector2 spawnClearance = new Vector2(0.9f, 1.2f);
     public float groundSnapDistance = 4f;
+    public bool disableSpawning = true;
 
     private bool triggered;
     private bool spawning;
@@ -29,9 +30,21 @@ public class EnemyWaveTrigger2D : MonoBehaviour
 
     private void Awake()
     {
+        if (disableSpawning)
+        {
+            DeactivateSpawnObjects();
+            enabled = false;
+            return;
+        }
+
         if (applyWaveDefinitionOnAwake && waveDefinition != null)
             ApplyWaveDefinition();
 
+        DeactivateSpawnObjects();
+    }
+
+    private void DeactivateSpawnObjects()
+    {
         if (spawnObjects != null)
         {
             for (int i = 0; i < spawnObjects.Length; i++)
@@ -44,12 +57,18 @@ public class EnemyWaveTrigger2D : MonoBehaviour
 
     private void Start()
     {
+        if (disableSpawning)
+            return;
+
         if (startActive)
             TriggerWave();
     }
 
     private void Update()
     {
+        if (disableSpawning)
+            return;
+
         if (!triggered && triggerWhenCameraReachesX && Camera.main != null)
         {
             float cameraRightEdge = Camera.main.transform.position.x + Camera.main.orthographicSize * Camera.main.aspect;
@@ -70,6 +89,9 @@ public class EnemyWaveTrigger2D : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D other)
     {
+        if (disableSpawning)
+            return;
+
         if (other.GetComponentInParent<PlayerController2D>() == null)
             return;
 
@@ -78,6 +100,9 @@ public class EnemyWaveTrigger2D : MonoBehaviour
 
     private void TriggerWave()
     {
+        if (disableSpawning)
+            return;
+
         if (triggerOnce && triggered)
             return;
 

@@ -201,6 +201,8 @@ public static class RunNGunLevel1RemnantConverter
         if (groundLayer >= 0)
             obj.layer = groundLayer;
 
+        SnapTilemapTransformToWholeCells(obj.transform);
+
         Rigidbody2D rb = obj.GetComponent<Rigidbody2D>();
         if (rb == null)
             rb = obj.AddComponent<Rigidbody2D>();
@@ -220,14 +222,37 @@ public static class RunNGunLevel1RemnantConverter
 
         if (oneWay)
         {
+            tilemapCollider.usedByEffector = true;
+            tilemapCollider.extrusionFactor = 0.03f;
+
             PlatformEffector2D effector = obj.GetComponent<PlatformEffector2D>();
             if (effector == null)
                 effector = obj.AddComponent<PlatformEffector2D>();
             effector.useOneWay = true;
             effector.useOneWayGrouping = true;
-            effector.surfaceArc = 160f;
+            effector.surfaceArc = 175f;
+            effector.useSideFriction = false;
+            effector.useSideBounce = false;
+            composite.geometryType = CompositeCollider2D.GeometryType.Outlines;
+            composite.edgeRadius = 0.02f;
             composite.usedByEffector = true;
+
+            OneWayTilemapSupport2D support = obj.GetComponent<OneWayTilemapSupport2D>();
+            if (support == null)
+                support = obj.AddComponent<OneWayTilemapSupport2D>();
+            support.colliderHeight = 0.18f;
+            support.surfaceArc = 175f;
         }
+    }
+
+    private static void SnapTilemapTransformToWholeCells(Transform tilemapTransform)
+    {
+        if (tilemapTransform == null)
+            return;
+
+        Vector3 position = tilemapTransform.localPosition;
+        tilemapTransform.localPosition = new Vector3(Mathf.Round(position.x), Mathf.Round(position.y), position.z);
+        tilemapTransform.localScale = Vector3.one;
     }
 
     private static GameObject CreateNeraPlayer(Vector3 position, GameObject projectilePrefab, GameObject bombPrefab)
@@ -391,8 +416,10 @@ public static class RunNGunLevel1RemnantConverter
     private static GameObject CreateHud(PlayerHealth playerHealth)
     {
         GameObject canvasObject = new GameObject("Canvas_HUD_Remnant");
+        canvasObject.transform.localScale = Vector3.one;
         Canvas canvas = canvasObject.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 100;
         CanvasScaler scaler = canvasObject.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1280, 720);
@@ -680,9 +707,15 @@ public static class RunNGunLevel1RemnantConverter
         EnemyShooter2D shooter = enemy.GetComponent<EnemyShooter2D>();
         if (shooter != null)
         {
+            bool brute = spawn.prefab != null && spawn.prefab.name.ToLowerInvariant().Contains("brute");
             shooter.obstacleLayers = LayerMask.GetMask("Ground");
-            shooter.allowVerticalShots = false;
-            shooter.horizontalShotHeight = 0.38f;
+            shooter.allowVerticalShots = true;
+            shooter.useRunNGunShootCycle = true;
+            shooter.fireCooldown = brute ? 0.28f : 0.22f;
+            shooter.activeShootTime = brute ? 0.9f : 0.5f;
+            shooter.waitShootTime = brute ? 0.5f : 1f;
+            shooter.horizontalShotHeight = 0.3f;
+            shooter.verticalShotOffset = 0.78f;
         }
 
         Vector3 scale = enemy.transform.localScale;

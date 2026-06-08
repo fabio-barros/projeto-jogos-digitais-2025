@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 public class EnemyPatrol2D : MonoBehaviour
@@ -11,11 +10,11 @@ public class EnemyPatrol2D : MonoBehaviour
     public LayerMask groundLayer;
     public LayerMask obstacleLayer;
     public LayerMask enemyLayer;
-    public float detectionRange = 26f;
-    public float preferredShootDistance = 5.5f;
-    public float closePressureDistance = 2.5f;
-    public float rushStopDistance = 1.35f;
-    public bool canJumpObstacles = true;
+    public float detectionRange = 18f;
+    public float preferredShootDistance = 7f;
+    public float closePressureDistance = 1.25f;
+    public float rushStopDistance = 1.15f;
+    public bool canJumpObstacles;
     public float jumpForce = 7.2f;
     public float jumpCooldown = 0.9f;
     public float stuckJumpInterval = 0.45f;
@@ -24,19 +23,29 @@ public class EnemyPatrol2D : MonoBehaviour
     public bool canDropToReachPlayer = true;
     public float dropWhenPlayerBelowBy = 0.85f;
     public float dropHorizontalWindow = 14f;
-    public bool useWaypointNavigation = true;
+    public bool useWaypointNavigation;
     public float repathInterval = 0.65f;
     public float waypointReachDistance = 0.55f;
     public float verticalRouteThreshold = 0.75f;
-    public float separationRadius = 1.1f;
-    public float separationStrength = 0.55f;
+    public float separationRadius = 0.75f;
+    public float separationStrength = 0.35f;
     public float minimumEnemyScaleX = 0.9f;
     public float minimumEnemyScaleY = 1.18f;
+    public bool moveOnlyWhenPlayerDetected = true;
+    public bool useRunNGunStationaryBehaviour = false;
+    public bool onlyEngageOnSameLevel = true;
+    public float sameLevelVerticalTolerance = 0.85f;
+    public bool onlyEngageWhenPlayerInFront = true;
+    public float minimumPlayerDistance = 3f;
+    public float patrolRadius = 2f;
+    public bool stopAtLedges = true;
+    public float ledgeProbeForwardDistance = 0.55f;
+    public float ledgeProbeDownDistance = 1.45f;
 
     public bool IsMoving { get; private set; }
     public Vector2 Velocity { get { return rb != null ? rb.linearVelocity : Vector2.zero; } }
-    public bool IsUsingWaypointRoute { get; private set; }
-    public Vector2 CurrentWaypointTarget { get; private set; }
+    public bool IsUsingWaypointRoute { get { return false; } }
+    public Vector2 CurrentWaypointTarget { get { return player != null ? (Vector2)player.position : (Vector2)transform.position; } }
     public int FacingDirection { get { return direction; } }
 
     private int direction = -1;
@@ -44,13 +53,8 @@ public class EnemyPatrol2D : MonoBehaviour
     private EnemyShooter2D shooter;
     private Rigidbody2D rb;
     private Transform player;
-    private EnemyWaypointGraph2D waypointGraph;
-    private List<EnemyWaypointNode2D> waypointPath;
-    private int waypointIndex;
-    private float nextRepathTime;
     private float nextJumpTime;
-    private float stuckTimer;
-    private Vector2 lastPosition;
+    private Vector2 homePosition;
 
     private void Awake()
     {
@@ -58,26 +62,16 @@ public class EnemyPatrol2D : MonoBehaviour
         shooter = GetComponent<EnemyShooter2D>();
         rb = GetComponent<Rigidbody2D>();
         direction = startingDirection >= 0 ? 1 : -1;
+        homePosition = transform.position;
         obstacleLayer = obstacleLayer.value == 0 ? groundLayer : obstacleLayer;
         enemyLayer = enemyLayer.value == 0 ? LayerMask.GetMask("Enemy") : enemyLayer;
-        lastPosition = transform.position;
         NormalizeScale();
 
         PlayerController2D foundPlayer = FindAnyObjectByType<PlayerController2D>();
         if (foundPlayer != null)
             player = foundPlayer.transform;
 
-        waypointGraph = EnemyWaypointGraph2D.Active;
         FaceDirection(direction);
-    }
-
-    private void NormalizeScale()
-    {
-        Vector3 scale = transform.localScale;
-        float sign = scale.x < 0f ? -1f : 1f;
-        float x = minimumEnemyScaleX > 0f ? Mathf.Max(Mathf.Abs(scale.x), minimumEnemyScaleX) : Mathf.Abs(scale.x);
-        float y = minimumEnemyScaleY > 0f ? Mathf.Max(Mathf.Abs(scale.y), minimumEnemyScaleY) : Mathf.Abs(scale.y);
-        transform.localScale = new Vector3(x * sign, y, scale.z);
     }
 
     private void Update()
@@ -88,53 +82,61 @@ public class EnemyPatrol2D : MonoBehaviour
             return;
         }
 
-        int desiredDirection = GetDesiredDirection();
-        if (desiredDirection != direction)
-            FaceDirection(desiredDirection);
+        if (player == null)
+        {
+            StopHorizontalMovement();
+            return;
+        }
 
+        Vector2 toPlayer = player.position - transform.position;
+        float horizontalDistance = Mathf.Abs(toPlayer.x);
+        float verticalDistance = Mathf.Abs(toPlayer.y);
+        bool sameLevel = !onlyEngageOnSameLevel || verticalDistance <= sameLevelVerticalTolerance;
+        bool playerInFront = !onlyEngageWhenPlayerInFront || Mathf.Sign(toPlayer.x) == direction;
+        bool playerDetected = horizontalDistance <= detectionRange && sameLevel && playerInFront;
+
+        if (!playerDetected)
+        {
+            PatrolNearHome();
+            return;
+        }
+
+        int desiredDirection = toPlayer.x >= 0f ? 1 : -1;
+        FaceDirection(desiredDirection);
+
+        if (useRunNGunStationaryBehaviour)
+        {
+            StopHorizontalMovement();
+            return;
+        }
+
+        bool grounded = IsGrounded();
         bool hasWallAhead = HasBlockingWallAhead();
         bool hasGroundAhead = HasGroundAhead();
-        bool grounded = IsGrounded();
-        bool shouldHoldForShot = ShouldHoldForShot();
-        bool hasWaypointTarget = TryGetWaypointTarget(hasWallAhead, hasGroundAhead, out Vector2 waypointTarget);
-        IsUsingWaypointRoute = hasWaypointTarget;
-        CurrentWaypointTarget = waypointTarget;
+        bool clearShot = shooter != null && shooter.HasClearLineOfSight(player);
 
-        if (hasWaypointTarget)
-        {
-            int routeDirection = waypointTarget.x >= transform.position.x ? 1 : -1;
-            if (Mathf.Abs(waypointTarget.x - transform.position.x) > 0.15f && routeDirection != direction)
-                FaceDirection(routeDirection);
-
-            if (grounded && hasWallAhead && CanJumpObstacleAhead())
-                TryJumpObstacle(false);
-        }
-
-        if (!hasGroundAhead && grounded && !CanUseWaypointDrop(waypointTarget, hasWaypointTarget) && !ShouldDropTowardLowerPlayer())
+        if (ShouldStopNearPlayer(horizontalDistance, verticalDistance))
         {
             StopHorizontalMovement();
             return;
         }
 
-        if (hasWallAhead && grounded && CanJumpObstacleAhead())
-        {
-            TryJumpObstacle(true);
-        }
-
-        TrackStuckState();
-        if (stuckTimer >= stuckJumpInterval && grounded && hasWallAhead && CanJumpObstacleAhead())
-        {
-            TryJumpObstacle(true);
-            stuckTimer = 0f;
-        }
-
-        if (shouldHoldForShot && !hasWallAhead && !hasWaypointTarget)
+        if (ShouldStopToShoot(horizontalDistance, verticalDistance, clearShot))
         {
             StopHorizontalMovement();
             return;
         }
 
-        if (!hasWaypointTarget && IsCloseToPlayer())
+        if (grounded && hasWallAhead)
+        {
+            if (canJumpObstacles && CanJumpObstacleAhead())
+                TryJumpObstacle();
+
+            StopHorizontalMovement();
+            return;
+        }
+
+        if (grounded && !hasGroundAhead && !ShouldStepOffLedgeTowardPlayer(toPlayer))
         {
             StopHorizontalMovement();
             return;
@@ -143,118 +145,65 @@ public class EnemyPatrol2D : MonoBehaviour
         MoveHorizontal(GetSeparatedMove(direction));
     }
 
-    private int GetDesiredDirection()
+    private void PatrolNearHome()
     {
-        if (player == null)
-            return direction;
-
-        float toPlayerX = player.position.x - transform.position.x;
-        if (Mathf.Abs(toPlayerX) > detectionRange)
-            return direction;
-
-        if (Mathf.Abs(toPlayerX) < 0.15f)
-            return direction;
-
-        return toPlayerX >= 0f ? 1 : -1;
-    }
-
-    private bool TryGetWaypointTarget(bool hasWallAhead, bool hasGroundAhead, out Vector2 waypointTarget)
-    {
-        waypointTarget = transform.position;
-
-        if (!useWaypointNavigation || player == null)
-            return false;
-
-        float distanceToPlayer = Vector2.Distance(transform.position, player.position);
-        if (distanceToPlayer > detectionRange)
-            return false;
-
-        float heightDifference = Mathf.Abs(player.position.y - transform.position.y);
-        bool needsRoute = hasWallAhead || !hasGroundAhead || heightDifference > verticalRouteThreshold || !HasClearDirectHorizontalRoute();
-        if (!needsRoute)
-            return false;
-
-        if (waypointGraph == null)
-            waypointGraph = EnemyWaypointGraph2D.Active;
-
-        if (waypointGraph == null)
-            return false;
-
-        if (waypointPath == null || waypointPath.Count == 0 || Time.time >= nextRepathTime)
+        if (useRunNGunStationaryBehaviour || moveOnlyWhenPlayerDetected && patrolRadius <= 0f)
         {
-            waypointPath = waypointGraph.FindPath(transform.position, player.position);
-            waypointIndex = 0;
-            nextRepathTime = Time.time + repathInterval;
+            StopHorizontalMovement();
+            return;
         }
 
-        if (waypointPath == null || waypointPath.Count == 0)
-            return false;
+        bool grounded = IsGrounded();
+        bool hasWallAhead = HasBlockingWallAhead();
+        bool hasGroundAhead = HasGroundAhead();
+        float minX = homePosition.x - Mathf.Max(0f, patrolRadius);
+        float maxX = homePosition.x + Mathf.Max(0f, patrolRadius);
 
-        while (waypointIndex < waypointPath.Count - 1 && Vector2.Distance(transform.position, waypointPath[waypointIndex].Position) <= waypointReachDistance)
-            waypointIndex++;
+        if (transform.position.x <= minX)
+            FaceDirection(1);
+        else if (transform.position.x >= maxX)
+            FaceDirection(-1);
 
-        EnemyWaypointNode2D node = waypointPath[Mathf.Clamp(waypointIndex, 0, waypointPath.Count - 1)];
-        if (node == null)
-            return false;
+        if (grounded && (hasWallAhead || !hasGroundAhead))
+        {
+            FaceDirection(-direction);
+            StopHorizontalMovement();
+            return;
+        }
 
-        waypointTarget = node.Position;
-        return true;
+        MoveHorizontal(GetSeparatedMove(direction) * 0.65f);
     }
 
-    private bool CanUseWaypointDrop(Vector2 waypointTarget, bool hasWaypointTarget)
+    private bool ShouldStopToShoot(float horizontalDistance, float verticalDistance, bool clearShot)
     {
-        if (!hasWaypointTarget)
+        if (shooter == null || !clearShot)
             return false;
 
-        return waypointTarget.y < transform.position.y - 0.35f;
+        if (onlyEngageOnSameLevel && verticalDistance > sameLevelVerticalTolerance)
+            return false;
+
+        return horizontalDistance <= Mathf.Min(preferredShootDistance, minimumPlayerDistance);
     }
 
-    private bool ShouldDropTowardLowerPlayer()
+    private bool ShouldStopNearPlayer(float horizontalDistance, float verticalDistance)
     {
-        if (!canDropToReachPlayer || player == null)
+        float stopDistance = Mathf.Max(rushStopDistance, minimumPlayerDistance);
+        float verticalLimit = onlyEngageOnSameLevel ? sameLevelVerticalTolerance : 1.1f;
+        return horizontalDistance <= stopDistance && verticalDistance <= verticalLimit;
+    }
+
+    private bool ShouldStepOffLedgeTowardPlayer(Vector2 toPlayer)
+    {
+        if (!canDropToReachPlayer)
             return false;
 
-        Vector2 toPlayer = player.position - transform.position;
         if (toPlayer.y > -dropWhenPlayerBelowBy)
             return false;
 
         if (Mathf.Abs(toPlayer.x) > dropHorizontalWindow)
             return false;
 
-        return Mathf.Sign(toPlayer.x) == direction || Mathf.Abs(toPlayer.x) < 0.25f;
-    }
-
-    private bool ShouldHoldForShot()
-    {
-        if (player == null || shooter == null)
-            return false;
-
-        Vector2 toPlayer = player.position - transform.position;
-        float distance = toPlayer.magnitude;
-        if (distance > preferredShootDistance || distance < closePressureDistance)
-            return false;
-
-        return shooter.HasClearLineOfSight(player);
-    }
-
-    private bool IsCloseToPlayer()
-    {
-        if (player == null)
-            return false;
-
-        float horizontalDistance = Mathf.Abs(player.position.x - transform.position.x);
-        float verticalDistance = Mathf.Abs(player.position.y - transform.position.y);
-        return horizontalDistance <= rushStopDistance && verticalDistance <= 1.1f;
-    }
-
-    private void TrackStuckState()
-    {
-        Vector2 currentPosition = transform.position;
-        float movedX = Mathf.Abs(currentPosition.x - lastPosition.x);
-        bool tryingToMove = !IsMoving || Mathf.Abs(direction) > 0;
-        bool blockedWhileTrying = tryingToMove && movedX < 0.005f && Mathf.Abs(Velocity.y) < 0.1f && HasBlockingWallAhead();
-        stuckTimer = blockedWhileTrying ? stuckTimer + Time.deltaTime : 0f;
-        lastPosition = currentPosition;
+        return Mathf.Sign(toPlayer.x) == direction;
     }
 
     private void MoveHorizontal(float moveDirection)
@@ -267,9 +216,17 @@ public class EnemyPatrol2D : MonoBehaviour
             transform.Translate(Vector2.right * moveDirection * moveSpeed * Time.deltaTime);
     }
 
+    private void StopHorizontalMovement()
+    {
+        IsMoving = false;
+
+        if (rb != null)
+            rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
+    }
+
     private float GetSeparatedMove(int desiredDirection)
     {
-        if (enemyLayer.value == 0)
+        if (enemyLayer.value == 0 || separationRadius <= 0f)
             return desiredDirection;
 
         Collider2D[] nearbyEnemies = Physics2D.OverlapCircleAll(transform.position, separationRadius, enemyLayer);
@@ -282,7 +239,7 @@ public class EnemyPatrol2D : MonoBehaviour
 
             float dx = transform.position.x - nearby.transform.position.x;
             if (Mathf.Abs(dx) < 0.03f)
-                dx = Random.value > 0.5f ? 0.03f : -0.03f;
+                dx = desiredDirection > 0 ? -0.03f : 0.03f;
 
             crowdBias += Mathf.Sign(dx) * separationStrength;
         }
@@ -290,73 +247,22 @@ public class EnemyPatrol2D : MonoBehaviour
         return Mathf.Clamp(desiredDirection + crowdBias, -1f, 1f);
     }
 
-    private void StopHorizontalMovement()
-    {
-        IsMoving = false;
-
-        if (rb != null)
-            rb.linearVelocity = new Vector2(0f, rb.linearVelocity.y);
-    }
-
     private bool HasGroundAhead()
     {
-        if (groundCheck == null)
+        if (groundCheck == null || groundLayer.value == 0)
             return true;
 
-        Collider2D hit = Physics2D.OverlapCircle(groundCheck.position, checkRadius, groundLayer);
-        return hit != null;
-    }
+        if (!stopAtLedges)
+            return Physics2D.OverlapCircle(groundCheck.position, checkRadius, groundLayer) != null;
 
-    private bool TryJumpObstacle(bool force)
-    {
-        if (!canJumpObstacles || rb == null || !IsGrounded())
-            return false;
-
-        if (!force && Time.time < nextJumpTime)
-            return false;
-
-        if (Time.time < nextJumpTime)
-            return false;
-
-        rb.linearVelocity = new Vector2(direction * moveSpeed, jumpForce);
-        nextJumpTime = Time.time + jumpCooldown;
-        IsMoving = true;
-        return true;
-    }
-
-    private bool TryJumpObstacle()
-    {
-        return TryJumpObstacle(false);
-    }
-
-    private bool IsGrounded()
-    {
-        Vector2 origin = (Vector2)transform.position + Vector2.down * 0.62f;
-        return Physics2D.OverlapCircle(origin, checkRadius, groundLayer) != null;
-    }
-
-    private bool CanJumpObstacleAhead()
-    {
-        if (wallCheck == null || obstacleLayer.value == 0)
-            return false;
-
-        Vector2 obstaclePoint = wallCheck.position;
-        Vector2 clearPoint = obstaclePoint + Vector2.up * obstacleJumpClearanceHeight;
-        if (Physics2D.OverlapCircle(clearPoint, checkRadius, obstacleLayer) != null)
-            return false;
-
-        Vector2 landingOrigin = (Vector2)transform.position + new Vector2(direction * obstacleLandingProbeDistance, obstacleJumpClearanceHeight + 0.25f);
-        RaycastHit2D landingHit = Physics2D.Raycast(landingOrigin, Vector2.down, obstacleJumpClearanceHeight + 0.75f, groundLayer);
-        if (landingHit.collider == null || landingHit.collider.isTrigger)
-            return false;
-
-        Vector2 bodyClearPoint = landingHit.point + Vector2.up * 0.65f;
-        return Physics2D.OverlapCircle(bodyClearPoint, checkRadius, obstacleLayer) == null;
+        Vector2 ahead = (Vector2)transform.position + new Vector2(direction * ledgeProbeForwardDistance, 0.08f);
+        RaycastHit2D hit = Physics2D.Raycast(ahead, Vector2.down, ledgeProbeDownDistance, groundLayer);
+        return hit.collider != null && !hit.collider.isTrigger;
     }
 
     private bool HasBlockingWallAhead()
     {
-        if (wallCheck == null)
+        if (wallCheck == null || obstacleLayer.value == 0)
             return false;
 
         Collider2D[] hits = Physics2D.OverlapCircleAll(wallCheck.position, checkRadius, obstacleLayer);
@@ -366,7 +272,6 @@ public class EnemyPatrol2D : MonoBehaviour
             if (hit == null || hit.transform == transform || hit.isTrigger)
                 continue;
 
-            // One-way platforms are valid footing, but should not make side-moving enemies turn around.
             if (hit.GetComponent<PlatformEffector2D>() != null)
                 continue;
 
@@ -376,20 +281,39 @@ public class EnemyPatrol2D : MonoBehaviour
         return false;
     }
 
-    private bool HasClearDirectHorizontalRoute()
+    private bool IsGrounded()
     {
-        if (player == null || obstacleLayer.value == 0)
-            return true;
+        Vector2 origin = groundCheck != null ? (Vector2)groundCheck.position : (Vector2)transform.position + Vector2.down * 0.58f;
+        return Physics2D.OverlapCircle(origin, checkRadius, groundLayer) != null;
+    }
 
-        Vector2 origin = transform.position + Vector3.up * 0.05f;
-        Vector2 target = new Vector2(player.position.x, transform.position.y + 0.05f);
-        Vector2 toTarget = target - origin;
-        float distance = Mathf.Abs(toTarget.x);
-        if (distance <= 0.35f)
-            return true;
+    private bool CanJumpObstacleAhead()
+    {
+        if (wallCheck == null || obstacleLayer.value == 0 || groundLayer.value == 0)
+            return false;
 
-        RaycastHit2D hit = Physics2D.Raycast(origin, new Vector2(Mathf.Sign(toTarget.x), 0f), distance, obstacleLayer);
-        return hit.collider == null || hit.collider.GetComponent<PlatformEffector2D>() != null;
+        Vector2 obstaclePoint = wallCheck.position;
+        Vector2 clearPoint = obstaclePoint + Vector2.up * obstacleJumpClearanceHeight;
+        if (Physics2D.OverlapCircle(clearPoint, checkRadius, obstacleLayer) != null)
+            return false;
+
+        Vector2 landingOrigin = (Vector2)transform.position + new Vector2(direction * obstacleLandingProbeDistance, obstacleJumpClearanceHeight + 0.35f);
+        RaycastHit2D landingHit = Physics2D.Raycast(landingOrigin, Vector2.down, obstacleJumpClearanceHeight + 0.9f, groundLayer);
+        if (landingHit.collider == null || landingHit.collider.isTrigger)
+            return false;
+
+        return true;
+    }
+
+    private bool TryJumpObstacle()
+    {
+        if (!canJumpObstacles || rb == null || Time.time < nextJumpTime || !IsGrounded())
+            return false;
+
+        rb.linearVelocity = new Vector2(direction * moveSpeed, jumpForce);
+        nextJumpTime = Time.time + jumpCooldown;
+        IsMoving = true;
+        return true;
     }
 
     private void FaceDirection(int newDirection)
@@ -399,9 +323,13 @@ public class EnemyPatrol2D : MonoBehaviour
         transform.localScale = new Vector3(xScale, transform.localScale.y, transform.localScale.z);
     }
 
-    private void Flip()
+    private void NormalizeScale()
     {
-        FaceDirection(-direction);
+        Vector3 scale = transform.localScale;
+        float sign = scale.x < 0f ? -1f : 1f;
+        float x = minimumEnemyScaleX > 0f ? Mathf.Max(Mathf.Abs(scale.x), minimumEnemyScaleX) : Mathf.Abs(scale.x);
+        float y = minimumEnemyScaleY > 0f ? Mathf.Max(Mathf.Abs(scale.y), minimumEnemyScaleY) : Mathf.Abs(scale.y);
+        transform.localScale = new Vector3(x * sign, y, scale.z);
     }
 
     private void OnDrawGizmos()
@@ -430,11 +358,9 @@ public class EnemyPatrol2D : MonoBehaviour
         Gizmos.color = Color.cyan;
         Gizmos.DrawLine(transform.position, transform.position + Vector3.right * direction * 1.1f);
 
-        if (IsUsingWaypointRoute)
-        {
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawWireSphere(CurrentWaypointTarget, 0.3f);
-            Gizmos.DrawLine(transform.position, CurrentWaypointTarget);
-        }
+        Gizmos.color = Color.yellow;
+        Vector3 left = new Vector3(homePosition.x - patrolRadius, transform.position.y, transform.position.z);
+        Vector3 right = new Vector3(homePosition.x + patrolRadius, transform.position.y, transform.position.z);
+        Gizmos.DrawLine(left, right);
     }
 }

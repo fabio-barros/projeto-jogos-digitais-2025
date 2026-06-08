@@ -193,11 +193,11 @@ public static class RemnantSquadAlphaBuilder
         if (!AssetDatabase.IsValidFolder(GenericRunGunPath) && !Directory.Exists(GenericRunGunPath))
             return;
 
-        Sprite importedEnemy = CreateCroppedSpriteAsset("GRG_Keth_Grunt_AR_Frame", GenericRunGunPath + "/Enemies/ARMob.png", new RectInt(0, 0, 32, 38), 32f);
+        Sprite importedEnemy = CreateCroppedSpriteAsset("GRG_Keth_Grunt_AR_Frame", GenericRunGunPath + "/Enemies/ARMob.png", new RectInt(0, 0, 32, 38), 24f);
         if (importedEnemy != null)
             enemySprite = importedEnemy;
 
-        Sprite importedBrute = CreateCroppedSpriteAsset("GRG_Keth_Brute_RPG_Frame", GenericRunGunPath + "/Enemies/RPGmob.png", new RectInt(0, 0, 44, 44), 32f);
+        Sprite importedBrute = CreateCroppedSpriteAsset("GRG_Keth_Brute_RPG_Frame", GenericRunGunPath + "/Enemies/RPGmob.png", new RectInt(0, 0, 44, 44), 24f);
         if (importedBrute != null)
             bruteSprite = importedBrute;
 
@@ -2338,7 +2338,7 @@ public static class RemnantSquadAlphaBuilder
             shooter.burstCount = scale.x > 1f ? 3 : 1;
             shooter.burstSpacing = scale.x > 1f ? 0.22f : 0.16f;
             shooter.projectileScaleMultiplier = scale.x > 1f ? 1.45f : 1f;
-            shooter.horizontalShotHeight = scale.x > 1f ? 0.38f : 0.28f;
+            shooter.horizontalShotHeight = scale.x > 1f ? 0.28f : 0.22f;
             shooter.verticalShotOffset = scale.x > 1f ? 0.55f : 0.35f;
             shooter.obstacleLayers = LayerMask.GetMask("Ground");
         }

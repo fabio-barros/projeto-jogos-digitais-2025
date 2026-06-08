@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Tilemaps;
 
 [RequireComponent(typeof(Rigidbody2D))]
 public class PlayerController2D : MonoBehaviour
@@ -16,6 +17,7 @@ public class PlayerController2D : MonoBehaviour
     public float minimumCharacterScale = 1.18f;
     public Transform groundCheck;
     public float groundCheckRadius = 0.16f;
+    public float groundedCastDistance = 0.08f;
     public LayerMask groundLayer;
 
     private Rigidbody2D rb;
@@ -51,6 +53,7 @@ public class PlayerController2D : MonoBehaviour
         bodyCollider = GetComponent<BoxCollider2D>();
         originalGravityScale = rb.gravityScale;
         originalScale = transform.localScale;
+        ConfigureOneWayTilemaps();
 
         if (bodyCollider != null)
         {
@@ -92,17 +95,19 @@ public class PlayerController2D : MonoBehaviour
             return;
         }
 
-        if (horizontal > 0)
+        if (!RemnantInput.ShootHeld())
         {
-            FaceDirection(1);
-        }
-        else if (horizontal < 0)
-        {
-            FaceDirection(-1);
+            if (horizontal > 0)
+            {
+                FaceDirection(1);
+            }
+            else if (horizontal < 0)
+            {
+                FaceDirection(-1);
+            }
         }
 
-        if (groundCheck != null)
-            isGrounded = Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer);
+        isGrounded = CheckGrounded();
 
         ApplyCrouchCollider();
 
@@ -187,6 +192,85 @@ public class PlayerController2D : MonoBehaviour
         return new Vector2(crouchColliderOffset.x, crouchOffsetY);
     }
 
+    private bool CheckGrounded()
+    {
+        if (groundLayer.value == 0)
+            return false;
+
+        if (groundCheck != null && Physics2D.OverlapCircle(groundCheck.position, groundCheckRadius, groundLayer) != null)
+            return true;
+
+        if (bodyCollider == null)
+            return false;
+
+        Bounds bounds = bodyCollider.bounds;
+        Vector2 origin = new Vector2(bounds.center.x, bounds.min.y + 0.03f);
+        Vector2 size = new Vector2(Mathf.Max(bounds.size.x - 0.08f, 0.12f), 0.08f);
+        RaycastHit2D hit = Physics2D.BoxCast(origin, size, 0f, Vector2.down, groundedCastDistance, groundLayer);
+        return hit.collider != null;
+    }
+
+    private void ConfigureOneWayTilemaps()
+    {
+        Tilemap[] tilemaps = FindObjectsByType<Tilemap>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+        for (int i = 0; i < tilemaps.Length; i++)
+        {
+            Tilemap tilemap = tilemaps[i];
+            if (tilemap == null || tilemap.name != "Tilemap One-Way Platforms")
+                continue;
+
+            GameObject obj = tilemap.gameObject;
+            int groundLayerIndex = LayerMask.NameToLayer("Ground");
+            if (groundLayerIndex >= 0)
+                obj.layer = groundLayerIndex;
+
+            Vector3 position = obj.transform.localPosition;
+            obj.transform.localPosition = new Vector3(Mathf.Round(position.x), Mathf.Round(position.y), position.z);
+            obj.transform.localScale = Vector3.one;
+
+            Rigidbody2D platformBody = obj.GetComponent<Rigidbody2D>();
+            if (platformBody == null)
+                platformBody = obj.AddComponent<Rigidbody2D>();
+            platformBody.bodyType = RigidbodyType2D.Static;
+            platformBody.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
+
+            TilemapCollider2D tilemapCollider = obj.GetComponent<TilemapCollider2D>();
+            if (tilemapCollider == null)
+                tilemapCollider = obj.AddComponent<TilemapCollider2D>();
+            tilemapCollider.usedByComposite = true;
+            tilemapCollider.usedByEffector = true;
+            tilemapCollider.extrusionFactor = 0.03f;
+
+            CompositeCollider2D composite = obj.GetComponent<CompositeCollider2D>();
+            if (composite == null)
+                composite = obj.AddComponent<CompositeCollider2D>();
+            composite.geometryType = CompositeCollider2D.GeometryType.Outlines;
+            composite.edgeRadius = 0.02f;
+            composite.usedByEffector = true;
+
+            PlatformEffector2D effector = obj.GetComponent<PlatformEffector2D>();
+            if (effector == null)
+                effector = obj.AddComponent<PlatformEffector2D>();
+            effector.useOneWay = true;
+            effector.useOneWayGrouping = true;
+            effector.surfaceArc = 175f;
+            effector.useSideFriction = false;
+            effector.useSideBounce = false;
+
+            OneWayTilemapSupport2D support = obj.GetComponent<OneWayTilemapSupport2D>();
+            if (support == null)
+            {
+                support = obj.AddComponent<OneWayTilemapSupport2D>();
+            }
+            else
+            {
+                support.colliderHeight = 0.18f;
+                support.surfaceArc = 175f;
+                support.RebuildSupportColliders();
+            }
+        }
+    }
+
     public void FaceAimDirection(float minimumHorizontalAim = 0.2f)
     {
         if (Mathf.Abs(aimDirection.x) < minimumHorizontalAim)
@@ -229,5 +313,13 @@ public class PlayerController2D : MonoBehaviour
     private void OnDrawGizmosSelected()
     {
         if (groundCheck != null) Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
+
+        if (bodyCollider != null)
+        {
+            Bounds bounds = bodyCollider.bounds;
+            Vector2 origin = new Vector2(bounds.center.x, bounds.min.y + 0.03f);
+            Vector2 size = new Vector2(Mathf.Max(bounds.size.x - 0.08f, 0.12f), 0.08f);
+            Gizmos.DrawWireCube(origin + Vector2.down * groundedCastDistance, size);
+        }
     }
 }

@@ -16,6 +16,7 @@ public static class RunNGunReferenceSceneBuilder
     private const string ExternalPath = BasePath + "/External/RunNGunReference/SpriteSheets";
     private const string AnimationsPath = BasePath + "/Animations";
     private const string PrefabsPath = BasePath + "/Prefabs";
+    private const string OriginalEnemyControllerPath = BasePath + "/External/RunNGunOriginal/Resources/Animations/Enemies/AR Enemy/AREnemyCont.controller";
     private const string ScenePath = "Assets/Scenes/Level_02_RunNGun_Relay.unity";
     private const string MirrorScenePath = BasePath + "/Scenes/Level_02_RunNGun_Relay.unity";
     private const string NeraPath = BasePath + "/Art/Nera/sprites";
@@ -376,8 +377,8 @@ public static class RunNGunReferenceSceneBuilder
 
     private static void BuildEnemies(GameObject projectilePrefab, GameObject deathPrefab)
     {
-        Sprite[] gruntFrames = SliceHorizontalFrames("Relay_ARGrunt", ExternalPath + "/ARMob.png", 32, 38, 24, 32f);
-        Sprite[] bruteFrames = SliceHorizontalFrames("Relay_RPGBrute", ExternalPath + "/RPGmob.png", 44, 44, 10, 32f);
+        Sprite[] gruntFrames = SliceHorizontalFrames("Relay_ARGrunt", ExternalPath + "/ARMob.png", 32, 38, 24, 24f);
+        Sprite[] bruteFrames = SliceHorizontalFrames("Relay_RPGBrute", ExternalPath + "/RPGmob.png", 44, 44, 10, 24f);
         RuntimeAnimatorController gruntController = CreateEnemyAnimator("Relay_ARGrunt", gruntFrames);
         RuntimeAnimatorController bruteController = CreateEnemyAnimator("Relay_RPGBrute", bruteFrames);
 
@@ -425,7 +426,8 @@ public static class RunNGunReferenceSceneBuilder
         patrol.groundLayer = LayerMask.GetMask("Ground");
         patrol.obstacleLayer = LayerMask.GetMask("Ground");
         patrol.jumpForce = 6.7f;
-        patrol.canJumpObstacles = true;
+        patrol.canJumpObstacles = false;
+        patrol.useRunNGunStationaryBehaviour = false;
         patrol.useWaypointNavigation = true;
         patrol.separationRadius = 1.2f;
         patrol.separationStrength = 0.85f;
@@ -438,11 +440,18 @@ public static class RunNGunReferenceSceneBuilder
         shooter.firePoint = firePoint;
         shooter.obstacleLayers = LayerMask.GetMask("Ground");
         shooter.range = 10f;
-        shooter.fireCooldown = cooldown;
+        shooter.fireCooldown = health > 3 ? 0.28f : 0.22f;
         shooter.burstCount = health > 3 ? 2 : 1;
+        shooter.horizontalShotHeight = 0.3f;
+        shooter.verticalShotOffset = 0.78f;
+        shooter.allowVerticalShots = true;
+        shooter.useRunNGunShootCycle = true;
+        shooter.activeShootTime = health > 3 ? 0.9f : 0.5f;
+        shooter.waitShootTime = health > 3 ? 0.5f : 1f;
 
         Animator animator = enemy.AddComponent<Animator>();
-        animator.runtimeAnimatorController = controller;
+        RuntimeAnimatorController originalEnemyController = AssetDatabase.LoadAssetAtPath<RuntimeAnimatorController>(OriginalEnemyControllerPath);
+        animator.runtimeAnimatorController = originalEnemyController != null ? originalEnemyController : controller;
         enemy.AddComponent<EnemyAnimationDriver>();
 
         return SavePrefab(enemy, prefabName);

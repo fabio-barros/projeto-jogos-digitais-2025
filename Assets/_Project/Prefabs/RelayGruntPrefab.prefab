@@ -25,7 +25,7 @@ Transform:
   m_GameObject: {fileID: 893863557170540320}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.36, y: -0.58, z: 0}
+  m_LocalPosition: {x: 0.36, y: -0.9, z: 0}
   m_LocalScale: {x: 1.4285715, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -184,12 +184,12 @@ SpriteRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 18
   m_MaskInteraction: 0
-  m_Sprite: {fileID: 21300000, guid: f8666212707e3294b92ab0decc2c6459, type: 3}
+  m_Sprite: {fileID: 1242577348, guid: cd97d318911e778499b7b846080adfea, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
   m_DrawMode: 0
-  m_Size: {x: 1, y: 1.1875}
+  m_Size: {x: 1.25, y: 1.75}
   m_AdaptiveModeThreshold: 0.5
   m_SpriteTileMode: 0
   m_WasSpriteAssigned: 1
@@ -255,7 +255,7 @@ BoxCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: 0, y: -0.05}
+  m_Offset: {x: 0, y: -0.285}
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
@@ -265,7 +265,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 0.58, y: 0.92}
+  m_Size: {x: 0.58, y: 1.18}
   m_EdgeRadius: 0
 --- !u!114 &4443258218104530446
 MonoBehaviour:
@@ -315,16 +315,16 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 0
   detectionRange: 26
-  preferredShootDistance: 5.5
-  closePressureDistance: 2.5
-  rushStopDistance: 1.35
-  canJumpObstacles: 1
+  preferredShootDistance: 3
+  closePressureDistance: 0
+  rushStopDistance: 3
+  canJumpObstacles: 0
   jumpForce: 6.7
   jumpCooldown: 0.9
   stuckJumpInterval: 0.45
   obstacleJumpClearanceHeight: 1.05
   obstacleLandingProbeDistance: 0.95
-  canDropToReachPlayer: 1
+  canDropToReachPlayer: 0
   dropWhenPlayerBelowBy: 0.85
   dropHorizontalWindow: 14
   useWaypointNavigation: 1
@@ -333,6 +333,18 @@ MonoBehaviour:
   verticalRouteThreshold: 0.75
   separationRadius: 1.2
   separationStrength: 0.85
+  minimumEnemyScaleX: 0.9
+  minimumEnemyScaleY: 1.18
+  moveOnlyWhenPlayerDetected: 0
+  useRunNGunStationaryBehaviour: 0
+  onlyEngageOnSameLevel: 1
+  sameLevelVerticalTolerance: 0.85
+  onlyEngageWhenPlayerInFront: 1
+  minimumPlayerDistance: 3
+  patrolRadius: 2
+  stopAtLedges: 1
+  ledgeProbeForwardDistance: 0.55
+  ledgeProbeDownDistance: 1.45
 --- !u!114 &2748213479492356997
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -348,9 +360,9 @@ MonoBehaviour:
   enemyProjectilePrefab: {fileID: 8834626290228320957, guid: 54cb02a1600c7aa40a5cd9ac2abd2339, type: 3}
   firePoint: {fileID: 8242670333283427885}
   range: 10
-  fireCooldown: 1.1
-  horizontalShotHeight: 0.38
-  verticalShotOffset: 0.25
+  fireCooldown: 0.22
+  horizontalShotHeight: 0.3
+  verticalShotOffset: 0.78
   cardinalAimOnly: 1
   allowVerticalShots: 0
   burstCount: 1
@@ -359,6 +371,15 @@ MonoBehaviour:
   obstacleLayers:
     serializedVersion: 2
     m_Bits: 256
+  applyRunNGunShotVariant: 1
+  shotVariant: 0
+  useRunNGunShootCycle: 1
+  initTime: 0
+  activeShootTime: 0.5
+  waitShootTime: 1
+  maxAngleWithLeftShot: 60
+  maxAngleWithUpShot: 30
+  maxAngleWithRightShot: 60
 --- !u!95 &1222305382432965357
 Animator:
   serializedVersion: 7
@@ -369,7 +390,7 @@ Animator:
   m_GameObject: {fileID: 6139243943102711140}
   m_Enabled: 1
   m_Avatar: {fileID: 0}
-  m_Controller: {fileID: 9100000, guid: 565731c4c59390b4ba41641a2e613a32, type: 2}
+  m_Controller: {fileID: 9100000, guid: 68efa6a16e4a11e4ca14515af53e90de, type: 2}
   m_CullingMode: 0
   m_UpdateMode: 0
   m_ApplyRootMotion: 0

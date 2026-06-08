@@ -42,12 +42,8 @@ public class PlayerShooter2D : MonoBehaviour
         {
             currentShootDirection = GetShootDirection();
 
-            if (RemnantInput.CrouchHeld() && controller.IsGrounded)
+            if (Mathf.Abs(currentShootDirection.x) > 0.15f)
                 controller.FaceDirection(currentShootDirection.x >= 0f ? 1 : -1);
-            else if (Mathf.Abs(controller.HorizontalInput) > 0.05f)
-                controller.FaceDirection(controller.HorizontalInput > 0f ? 1 : -1);
-            else
-                controller.FaceAimDirection();
         }
         else if (controller != null)
         {
@@ -107,7 +103,8 @@ public class PlayerShooter2D : MonoBehaviour
             aim = currentShootDirection;
 
         float baseHeight = RemnantInput.CrouchHeld() && controller.IsGrounded ? -0.15f : 0.1f;
-        firePoint.localPosition = new Vector3(aim.x * firePointDistance * controller.FacingDirection, baseHeight + aim.y * firePointDistance, 0f);
+        float horizontalOffset = Mathf.Abs(aim.x) > 0.15f ? Mathf.Sign(aim.x) * controller.FacingDirection * firePointDistance : 0f;
+        firePoint.localPosition = new Vector3(horizontalOffset, baseHeight + aim.y * firePointDistance, 0f);
     }
 
     private Vector2 GetShootDirection()
@@ -123,9 +120,9 @@ public class PlayerShooter2D : MonoBehaviour
             return new Vector2(controller.FacingDirection, 0f);
         }
 
-        if (Mathf.Abs(controller.HorizontalInput) > 0.05f)
-            return new Vector2(controller.HorizontalInput > 0f ? 1f : -1f, 0f);
+        if (controller.AimDirection.sqrMagnitude > 0.01f)
+            return controller.AimDirection.normalized;
 
-        return controller.AimDirection;
+        return new Vector2(controller.FacingDirection, 0f);
     }
 }
