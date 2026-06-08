@@ -16,8 +16,11 @@ public class SimpleHUD : MonoBehaviour
     public Image livesFill;
     public Image ammoFill;
     public Image bombFill;
+    public Sprite lifeHeartSprite;
+    public Image[] lifeHeartImages;
 
     private Font hudFont;
+    private static Sprite fallbackHeartSprite;
 
     private void Awake()
     {
@@ -35,10 +38,11 @@ public class SimpleHUD : MonoBehaviour
                 : "HP: " + playerHealth.CurrentHealth + "/" + playerHealth.MaxHealth;
             SetFill(healthFill, playerHealth.CurrentHealth, playerHealth.MaxHealth);
             SetFill(livesFill, playerHealth.CurrentLives, playerHealth.MaxLives);
+            UpdateLifeHearts();
         }
 
         if (playerHealth != null && livesText != null)
-            livesText.text = "Lives: " + playerHealth.CurrentLives + "/" + playerHealth.MaxLives;
+            livesText.gameObject.SetActive(false);
 
         if (GameManager.Instance != null && scoreText != null)
             scoreText.text = "Score: " + GameManager.Instance.Score;
@@ -71,6 +75,115 @@ public class SimpleHUD : MonoBehaviour
         image.fillAmount = max > 0 ? Mathf.Clamp01((float)current / max) : 0f;
     }
 
+    private void EnsureLifeHearts()
+    {
+        if (livesText != null)
+            livesText.gameObject.SetActive(false);
+
+        int maxLives = playerHealth != null ? Mathf.Max(playerHealth.MaxLives, 1) : 3;
+        if (lifeHeartImages != null && lifeHeartImages.Length == maxLives)
+            return;
+
+        Transform existing = transform.Find("LifeHearts_Runtime");
+        if (existing != null)
+            Destroy(existing.gameObject);
+
+        GameObject container = new GameObject("LifeHearts_Runtime");
+        container.transform.SetParent(transform, false);
+
+        RectTransform rect = container.AddComponent<RectTransform>();
+        rect.anchorMin = new Vector2(0f, 1f);
+        rect.anchorMax = new Vector2(0f, 1f);
+        rect.pivot = new Vector2(0f, 1f);
+        rect.anchoredPosition = new Vector2(24f, -78f);
+        rect.sizeDelta = new Vector2(maxLives * 30f, 28f);
+
+        Sprite sprite = GetLifeHeartSprite();
+        lifeHeartImages = new Image[maxLives];
+        for (int i = 0; i < maxLives; i++)
+        {
+            GameObject heart = new GameObject("LifeHeart_" + (i + 1));
+            heart.transform.SetParent(container.transform, false);
+
+            RectTransform heartRect = heart.AddComponent<RectTransform>();
+            heartRect.anchorMin = new Vector2(0f, 0.5f);
+            heartRect.anchorMax = new Vector2(0f, 0.5f);
+            heartRect.pivot = new Vector2(0f, 0.5f);
+            heartRect.anchoredPosition = new Vector2(i * 30f, 0f);
+            heartRect.sizeDelta = new Vector2(24f, 24f);
+
+            Image image = heart.AddComponent<Image>();
+            image.sprite = sprite;
+            image.preserveAspect = true;
+            lifeHeartImages[i] = image;
+        }
+
+        UpdateLifeHearts();
+    }
+
+    private void UpdateLifeHearts()
+    {
+        if (lifeHeartImages == null || lifeHeartImages.Length == 0)
+            EnsureLifeHearts();
+
+        if (lifeHeartImages == null || playerHealth == null)
+            return;
+
+        for (int i = 0; i < lifeHeartImages.Length; i++)
+        {
+            if (lifeHeartImages[i] == null)
+                continue;
+
+            lifeHeartImages[i].color = i < playerHealth.CurrentLives
+                ? Color.white
+                : new Color(0.25f, 0.25f, 0.25f, 0.45f);
+        }
+    }
+
+    private Sprite GetLifeHeartSprite()
+    {
+        if (lifeHeartSprite != null)
+            return lifeHeartSprite;
+
+        lifeHeartSprite = Resources.Load<Sprite>("Sprite Sheets/heart pixel art 32x32");
+        if (lifeHeartSprite != null)
+            return lifeHeartSprite;
+
+        if (fallbackHeartSprite == null)
+            fallbackHeartSprite = CreateFallbackHeartSprite();
+
+        return fallbackHeartSprite;
+    }
+
+    private static Sprite CreateFallbackHeartSprite()
+    {
+        Texture2D texture = new Texture2D(16, 16, TextureFormat.RGBA32, false);
+        Color clear = new Color(0f, 0f, 0f, 0f);
+        Color red = new Color(1f, 0.1f, 0.18f, 1f);
+        Color dark = new Color(0.35f, 0f, 0.05f, 1f);
+
+        for (int y = 0; y < 16; y++)
+        {
+            for (int x = 0; x < 16; x++)
+            {
+                bool leftLobe = (x - 5) * (x - 5) + (y - 10) * (y - 10) <= 16;
+                bool rightLobe = (x - 10) * (x - 10) + (y - 10) * (y - 10) <= 16;
+                bool point = y <= 10 && Mathf.Abs(x - 7.5f) <= y * 0.72f;
+                bool filled = leftLobe || rightLobe || point;
+                bool edge = filled && (x < 2 || x > 13 || y < 2 || y > 13 ||
+                    !((x - 5) * (x - 5) + (y - 10) * (y - 10) <= 20 ||
+                      (x - 10) * (x - 10) + (y - 10) * (y - 10) <= 20 ||
+                      (y <= 11 && Mathf.Abs(x - 7.5f) <= y * 0.78f)));
+
+                texture.SetPixel(x, y, filled ? (edge ? dark : red) : clear);
+            }
+        }
+
+        texture.filterMode = FilterMode.Point;
+        texture.Apply();
+        return Sprite.Create(texture, new Rect(0f, 0f, 16f, 16f), new Vector2(0.5f, 0.5f), 16f);
+    }
+
     private void EnsureImprovedHUD()
     {
         if (transform.Find("StatusPanel") == null && transform.Find("StatusPanel_Runtime") == null)
@@ -97,6 +210,8 @@ public class SimpleHUD : MonoBehaviour
             CreateText("ControlsAction_Runtime", controlsPanel.transform, "JUMP Space/A DASH Shift/LB RESCUE/RIDE E/RB", new Vector2(16f, -138f), TextAnchor.UpperLeft, 14);
             CreateText("ControlsSystem_Runtime", controlsPanel.transform, "RESTART Enter/Start on Game Over", new Vector2(16f, -158f), TextAnchor.UpperLeft, 13);
         }
+
+        EnsureLifeHearts();
     }
 
     private void EnsureGameOverPanel()

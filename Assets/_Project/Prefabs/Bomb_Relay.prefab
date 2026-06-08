@@ -175,7 +175,7 @@ MonoBehaviour:
   damageLayers:
     serializedVersion: 2
     m_Bits: 1024
-  explosionVisual: {fileID: 1319840552658442604, guid: 57fcb294b7ae3c443aceedfda48454ff, type: 3}
+  explosionVisual: {fileID: 381249668967520276, guid: a034486d61b1214479888c4ff1a51c84, type: 3}
   visibleColor: {r: 0.05, g: 1, b: 0.95, a: 1}
   trailColor: {r: 1, g: 0.95, b: 0.1, a: 1}
   trailTime: 0.45

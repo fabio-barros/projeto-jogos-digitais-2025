@@ -130,11 +130,30 @@ public class EnemyWaveTrigger2D : MonoBehaviour
 
         GameObject spawnObject = spawnObjects[nextSpawnIndex];
         if (spawnPoints != null && nextSpawnIndex < spawnPoints.Length && spawnPoints[nextSpawnIndex] != null)
-            spawnObject.transform.position = ResolveSpawnPosition(spawnPoints[nextSpawnIndex].position);
+            spawnObject.transform.position = ResolveSpawnPosition(ResolveOffCameraSpawnPosition(spawnPoints[nextSpawnIndex].position));
 
         spawnObject.SetActive(true);
         StaggerAnimation(spawnObject, nextSpawnIndex);
         nextSpawnIndex++;
+    }
+
+    private Vector3 ResolveOffCameraSpawnPosition(Vector3 requestedPosition)
+    {
+        if (!triggerWhenCameraReachesX || Camera.main == null)
+            return requestedPosition;
+
+        Camera camera = Camera.main;
+        float halfWidth = camera.orthographicSize * camera.aspect;
+        float leftEdge = camera.transform.position.x - halfWidth;
+        float rightEdge = camera.transform.position.x + halfWidth;
+        float margin = Mathf.Max(1.4f, spawnClearance.x * 1.5f);
+
+        if (requestedPosition.x <= leftEdge || requestedPosition.x >= rightEdge)
+            return requestedPosition;
+
+        float cameraCenter = camera.transform.position.x;
+        float offscreenX = requestedPosition.x < cameraCenter ? leftEdge - margin : rightEdge + margin;
+        return new Vector3(offscreenX, requestedPosition.y, requestedPosition.z);
     }
 
     private Vector3 ResolveSpawnPosition(Vector3 requestedPosition)

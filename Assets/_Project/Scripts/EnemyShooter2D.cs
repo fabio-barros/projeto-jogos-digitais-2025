@@ -9,6 +9,7 @@ public class EnemyShooter2D : MonoBehaviour
     public float horizontalShotHeight = 0.25f;
     public float verticalShotOffset = 0.25f;
     public bool cardinalAimOnly = true;
+    public bool allowVerticalShots;
     public int burstCount = 1;
     public float burstSpacing = 0.16f;
     public float projectileScaleMultiplier = 1f;
@@ -83,6 +84,9 @@ public class EnemyShooter2D : MonoBehaviour
     {
         if (!cardinalAimOnly)
             return toPlayer.sqrMagnitude > 0.01f ? toPlayer.normalized : Vector2.left;
+
+        if (!allowVerticalShots)
+            return toPlayer.x >= 0f ? Vector2.right : Vector2.left;
 
         if (Mathf.Abs(toPlayer.y) > Mathf.Abs(toPlayer.x) * 1.15f)
             return toPlayer.y > 0f ? Vector2.up : Vector2.down;

@@ -11,7 +11,8 @@ public class PlayerController2D : MonoBehaviour
     public float crouchMoveMultiplier = 0.5f;
     public float swimSpeed = 3f;
     public Vector2 crouchColliderSize = new Vector2(0.55f, 0.48f);
-    public Vector2 crouchColliderOffset = new Vector2(0f, -0.28f);
+    public Vector2 crouchColliderOffset = new Vector2(0f, -0.445f);
+    public bool keepFeetPlantedWhenCrouching = true;
     public float minimumCharacterScale = 1.18f;
     public Transform groundCheck;
     public float groundCheckRadius = 0.16f;
@@ -167,13 +168,23 @@ public class PlayerController2D : MonoBehaviour
         if (IsCrouching)
         {
             bodyCollider.size = crouchColliderSize;
-            bodyCollider.offset = crouchColliderOffset;
+            bodyCollider.offset = GetCrouchColliderOffset();
         }
         else
         {
             bodyCollider.size = standingColliderSize;
             bodyCollider.offset = standingColliderOffset;
         }
+    }
+
+    private Vector2 GetCrouchColliderOffset()
+    {
+        if (!keepFeetPlantedWhenCrouching)
+            return crouchColliderOffset;
+
+        float standingBottom = standingColliderOffset.y - standingColliderSize.y * 0.5f;
+        float crouchOffsetY = standingBottom + crouchColliderSize.y * 0.5f;
+        return new Vector2(crouchColliderOffset.x, crouchOffsetY);
     }
 
     public void FaceAimDirection(float minimumHorizontalAim = 0.2f)

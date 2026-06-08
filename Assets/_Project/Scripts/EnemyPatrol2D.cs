@@ -30,6 +30,8 @@ public class EnemyPatrol2D : MonoBehaviour
     public float verticalRouteThreshold = 0.75f;
     public float separationRadius = 1.1f;
     public float separationStrength = 0.55f;
+    public float minimumEnemyScaleX = 0.9f;
+    public float minimumEnemyScaleY = 1.18f;
 
     public bool IsMoving { get; private set; }
     public Vector2 Velocity { get { return rb != null ? rb.linearVelocity : Vector2.zero; } }
@@ -59,6 +61,7 @@ public class EnemyPatrol2D : MonoBehaviour
         obstacleLayer = obstacleLayer.value == 0 ? groundLayer : obstacleLayer;
         enemyLayer = enemyLayer.value == 0 ? LayerMask.GetMask("Enemy") : enemyLayer;
         lastPosition = transform.position;
+        NormalizeScale();
 
         PlayerController2D foundPlayer = FindAnyObjectByType<PlayerController2D>();
         if (foundPlayer != null)
@@ -66,6 +69,15 @@ public class EnemyPatrol2D : MonoBehaviour
 
         waypointGraph = EnemyWaypointGraph2D.Active;
         FaceDirection(direction);
+    }
+
+    private void NormalizeScale()
+    {
+        Vector3 scale = transform.localScale;
+        float sign = scale.x < 0f ? -1f : 1f;
+        float x = minimumEnemyScaleX > 0f ? Mathf.Max(Mathf.Abs(scale.x), minimumEnemyScaleX) : Mathf.Abs(scale.x);
+        float y = minimumEnemyScaleY > 0f ? Mathf.Max(Mathf.Abs(scale.y), minimumEnemyScaleY) : Mathf.Abs(scale.y);
+        transform.localScale = new Vector3(x * sign, y, scale.z);
     }
 
     private void Update()

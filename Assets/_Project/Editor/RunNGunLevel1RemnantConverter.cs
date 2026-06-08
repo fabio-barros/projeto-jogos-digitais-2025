@@ -61,7 +61,7 @@ public static class RunNGunLevel1RemnantConverter
         GameObject playerProjectile = LoadPrefab("PlayerProjectile_Relay") ?? LoadPrefab("PlayerProjectile");
         GameObject bomb = LoadPrefab("Bomb_Relay") ?? LoadPrefab("PlayerBomb");
         GameObject enemyProjectile = LoadPrefab("EnemyProjectile_Relay") ?? LoadPrefab("EnemyProjectile_Subway");
-        GameObject enemyDeath = LoadPrefab("EnemyDeath_Relay") ?? LoadPrefab("EnemyDeath_Subway");
+        GameObject enemyDeath = LoadPrefab("EnemyDeathEffect") ?? LoadPrefab("EnemyDeath_Relay") ?? LoadPrefab("EnemyDeath_Subway");
         GameObject gruntPrefab = LoadPrefab("RelayGruntPrefab");
         GameObject brutePrefab = LoadPrefab("RelayBrutePrefab");
 
@@ -239,7 +239,7 @@ public static class RunNGunLevel1RemnantConverter
 
         GameObject player = new GameObject("Player_Nera_Remnant");
         player.transform.position = position;
-        player.transform.localScale = new Vector3(0.72f, 0.72f, 1f);
+        player.transform.localScale = Vector3.one;
         player.layer = LayerMask.NameToLayer("Player");
 
         SpriteRenderer rootRenderer = player.AddComponent<SpriteRenderer>();
@@ -279,8 +279,10 @@ public static class RunNGunLevel1RemnantConverter
         PlayerController2D controller = player.AddComponent<PlayerController2D>();
         controller.moveSpeed = 2.55f;
         controller.crouchMoveMultiplier = 0.45f;
+        controller.crouchColliderOffset = new Vector2(0f, -0.445f);
+        controller.keepFeetPlantedWhenCrouching = true;
         controller.jumpForce = 10.5f;
-        controller.minimumCharacterScale = 0.72f;
+        controller.minimumCharacterScale = 1f;
         controller.groundCheckRadius = 0.2f;
         controller.groundCheck = groundCheck;
         controller.groundLayer = LayerMask.GetMask("Ground");
@@ -353,7 +355,7 @@ public static class RunNGunLevel1RemnantConverter
         }
 
         camera.orthographic = true;
-        camera.orthographicSize = 5.4f;
+        camera.orthographicSize = 5f;
 
         foreach (MonoBehaviour behaviour in camera.GetComponents<MonoBehaviour>())
         {
@@ -365,7 +367,7 @@ public static class RunNGunLevel1RemnantConverter
         if (follow == null)
             follow = camera.gameObject.AddComponent<CameraFollow2D>();
         follow.target = player;
-        follow.offset = new Vector3(2.4f, 1.15f, -10f);
+        follow.offset = new Vector3(3f, 1f, -4f);
         follow.smoothSpeed = 9f;
         follow.useBounds = false;
     }
@@ -430,6 +432,8 @@ public static class RunNGunLevel1RemnantConverter
         hud.bombText = bombText;
         hud.scoreText = scoreText;
         hud.gameOverText = gameOverText;
+        hud.lifeHeartSprite = LoadSprite("Assets/_Project/External/RunNGunOriginal/Resources/Sprite Sheets/heart pixel art 32x32.png") ??
+                              LoadSprite("Assets/_Project/External/RunNGunReference/SpriteSheets/heart pixel art 32x32.png");
         return completePanel;
     }
 
@@ -675,10 +679,14 @@ public static class RunNGunLevel1RemnantConverter
 
         EnemyShooter2D shooter = enemy.GetComponent<EnemyShooter2D>();
         if (shooter != null)
+        {
             shooter.obstacleLayers = LayerMask.GetMask("Ground");
+            shooter.allowVerticalShots = false;
+            shooter.horizontalShotHeight = 0.38f;
+        }
 
         Vector3 scale = enemy.transform.localScale;
-        float enemyScaleMultiplier = spawn.prefab.name.Contains("Brute") ? 1.25f : 1.55f;
+        float enemyScaleMultiplier = spawn.prefab != null && spawn.prefab.name.ToLowerInvariant().Contains("brute") ? 1.12f : 1.28f;
         enemy.transform.localScale = new Vector3(Mathf.Abs(scale.x) * enemyScaleMultiplier * (spawn.startingDirection >= 0 ? 1f : -1f), scale.y * enemyScaleMultiplier, scale.z);
         enemy.SetActive(false);
         return enemy;

@@ -96,7 +96,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1.18, z: 1}
+  m_LocalScale: {x: 1.12, y: 1.34, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 3960845921017727891}
@@ -253,7 +253,7 @@ MonoBehaviour:
   deathDelay: 0.25
   hitFlashDuration: 0.08
   knockbackForce: 2.5
-  deathEffectPrefab: {fileID: 9002403005836593670, guid: 60326f28e4f780b4488797ea49c4e71e, type: 3}
+  deathEffectPrefab: {fileID: 1221275612998460193, guid: 41fd6e5db7eb68740a8fbf0e84c9d6ff, type: 3}
   onDeath:
     m_PersistentCalls:
       m_Calls: []
@@ -318,9 +318,10 @@ MonoBehaviour:
   firePoint: {fileID: 6601800383672522185}
   range: 10
   fireCooldown: 1.9
-  horizontalShotHeight: 0.25
+  horizontalShotHeight: 0.42
   verticalShotOffset: 0.25
   cardinalAimOnly: 1
+  allowVerticalShots: 0
   burstCount: 2
   burstSpacing: 0.16
   projectileScaleMultiplier: 1

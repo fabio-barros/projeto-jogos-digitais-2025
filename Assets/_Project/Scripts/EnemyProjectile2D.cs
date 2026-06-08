@@ -51,6 +51,10 @@ public class EnemyProjectile2D : MonoBehaviour
         PlayerHealth playerHealth = collision.GetComponent<PlayerHealth>();
         if (playerHealth != null)
         {
+            PlayerController2D controller = collision.GetComponent<PlayerController2D>();
+            if (controller != null && controller.IsCrouching && Mathf.Abs(direction.y) < 0.2f)
+                return;
+
             playerHealth.TakeDamage(damage);
             SpawnHitEffect();
             Despawn();
