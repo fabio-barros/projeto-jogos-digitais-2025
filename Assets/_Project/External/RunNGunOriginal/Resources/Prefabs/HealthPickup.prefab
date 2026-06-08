@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 2826121681245576978}
   - component: {fileID: 7114695707303877290}
   - component: {fileID: 866889037819872002}
+  - component: {fileID: 4573926416850779441}
   m_Layer: 8
   m_Name: HealthPickup
   m_TagString: HealthPickup
@@ -123,3 +124,22 @@ CircleCollider2D:
   m_Offset: {x: -0.04928547, y: 0.28339064}
   serializedVersion: 2
   m_Radius: 0.7337513
+--- !u!114 &4573926416850779441
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3075687340734226591}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0d17287acd0236f4e96b1b25fd248511, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Pickup2D
+  healthReward: 1
+  ammoReward: 0
+  bombReward: 0
+  scoreReward: 0
+  defaultCoinScore: 100
+  inferTypeFromName: 1
+  destroyOnPickup: 1

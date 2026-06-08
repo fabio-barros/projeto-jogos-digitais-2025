@@ -114,6 +114,11 @@ public static class RemnantInput
             || Input.GetMouseButtonDown(0);
     }
 
+    public static bool PauseDown()
+    {
+        return Input.GetKeyDown(KeyCode.Escape);
+    }
+
     public static bool InteractDown()
     {
         return Input.GetKeyDown(KeyCode.E)

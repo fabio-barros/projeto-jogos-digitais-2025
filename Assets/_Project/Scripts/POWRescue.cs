@@ -46,9 +46,6 @@ public class POWRescue : MonoBehaviour
     {
         rescued = true;
 
-        if (GameManager.Instance != null)
-            GameManager.Instance.AddScore(scoreReward);
-
         if (playerHealth != null)
             playerHealth.Heal(healReward);
 
@@ -57,6 +54,9 @@ public class POWRescue : MonoBehaviour
 
         if (playerShooter != null)
             playerShooter.RefillAmmo(ammoReward);
+
+        if (GameManager.Instance != null)
+            GameManager.Instance.RescuePOW(scoreReward, healReward, bombReward, ammoReward);
 
         if (rescuePrompt != null) rescuePrompt.SetActive(false);
         if (rescuedVisual != null) rescuedVisual.SetActive(true);
@@ -70,20 +70,20 @@ public class POWRescue : MonoBehaviour
 
     private void OnTriggerEnter2D(Collider2D collision)
     {
-        PlayerHealth health = collision.GetComponent<PlayerHealth>();
+        PlayerHealth health = collision.GetComponentInParent<PlayerHealth>();
         if (health != null)
         {
             playerInside = true;
             playerHealth = health;
-            playerBombThrower = collision.GetComponent<PlayerBombThrower2D>();
-            playerShooter = collision.GetComponent<PlayerShooter2D>();
+            playerBombThrower = health.GetComponent<PlayerBombThrower2D>();
+            playerShooter = health.GetComponent<PlayerShooter2D>();
             if (rescuePrompt != null && !rescued) rescuePrompt.SetActive(true);
         }
     }
 
     private void OnTriggerExit2D(Collider2D collision)
     {
-        PlayerHealth health = collision.GetComponent<PlayerHealth>();
+        PlayerHealth health = collision.GetComponentInParent<PlayerHealth>();
         if (health != null)
         {
             playerInside = false;

@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 5418345958172739317}
   - component: {fileID: 2078150876678837470}
   - component: {fileID: -2983029758881152013}
+  - component: {fileID: 6631283507408829191}
   m_Layer: 8
   m_Name: Coin
   m_TagString: Coin
@@ -136,3 +137,22 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5f7a1d3e934310343ac9e94b75b2ac00, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!114 &6631283507408829191
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5418345958172739306}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0d17287acd0236f4e96b1b25fd248511, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Pickup2D
+  healthReward: 0
+  ammoReward: 0
+  bombReward: 0
+  scoreReward: 100
+  defaultCoinScore: 100
+  inferTypeFromName: 1
+  destroyOnPickup: 1

@@ -10,6 +10,7 @@ public class EnemyAmbushReveal2D : MonoBehaviour
     public float emergeDistance = 1.1f;
     public float emergeSpeed = 2.1f;
     public bool becomeStationaryAfterEmerge;
+    public bool facePlayerOnReveal = true;
 
     private SpriteRenderer[] spriteRenderers;
     private Collider2D[] colliders;
@@ -58,7 +59,7 @@ public class EnemyAmbushReveal2D : MonoBehaviour
 
         revealed = true;
         SetHidden(false);
-        FaceDirection(emergeDirection);
+        FaceTowardPlayer();
 
         if (patrol != null)
             patrol.enabled = false;
@@ -90,6 +91,8 @@ public class EnemyAmbushReveal2D : MonoBehaviour
             patrol.useRunNGunStationaryBehaviour = becomeStationaryAfterEmerge;
             patrol.enabled = true;
         }
+
+        FaceTowardPlayer();
 
         if (shooter != null)
             shooter.enabled = true;
@@ -138,6 +141,28 @@ public class EnemyAmbushReveal2D : MonoBehaviour
 
         Vector3 scale = transform.localScale;
         transform.localScale = new Vector3(Mathf.Abs(scale.x) * (direction > 0 ? 1f : -1f), scale.y, scale.z);
+    }
+
+    private void FaceTowardPlayer()
+    {
+        if (!facePlayerOnReveal)
+        {
+            FaceDirection(emergeDirection);
+            return;
+        }
+
+        PlayerController2D player = FindAnyObjectByType<PlayerController2D>();
+        if (player == null)
+        {
+            FaceDirection(emergeDirection);
+            return;
+        }
+
+        float dx = player.transform.position.x - transform.position.x;
+        if (Mathf.Abs(dx) > 0.05f)
+            FaceDirection(dx >= 0f ? 1 : -1);
+        else
+            FaceDirection(emergeDirection);
     }
 
     private bool IsAmbushTriggerCollider(Collider2D collider)

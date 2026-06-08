@@ -5,6 +5,8 @@ public class PlayerHealth : MonoBehaviour
 {
     public int maxHealth = 3;
     public int maxLives = 3;
+    public bool gameOverWhenHealthDepleted = true;
+    public int hitsPerHeart = 3;
     public float invulnerabilityTime = 0.7f;
     public float deathReloadDelay = 1.35f;
     public float respawnInvulnerabilityTime = 1.2f;
@@ -13,6 +15,7 @@ public class PlayerHealth : MonoBehaviour
     private static int remainingLives = -1;
 
     private int currentHealth;
+    private int damageTowardNextHeart;
     private float invulnerabilityTimer;
     private float deathTimer;
     private bool isDead;
@@ -33,12 +36,18 @@ public class PlayerHealth : MonoBehaviour
     public bool CanAct { get { return !isDead && !isGameOver; } }
     public bool WasRecentlyHurt { get { return invulnerabilityTimer > invulnerabilityTime - 0.2f; } }
 
+    public static void ResetPersistentLives()
+    {
+        remainingLives = -1;
+    }
+
     private void Awake()
     {
         if (remainingLives <= 0 || remainingLives > maxLives)
             remainingLives = maxLives;
 
         currentHealth = maxHealth;
+        damageTowardNextHeart = 0;
         spriteRenderers = GetComponentsInChildren<SpriteRenderer>();
         rendererInitialEnabled = new bool[spriteRenderers.Length];
         rendererInitialColors = new Color[spriteRenderers.Length];
@@ -90,8 +99,15 @@ public class PlayerHealth : MonoBehaviour
         if (isDead) return;
         if (invulnerabilityTimer > 0) return;
 
-        currentHealth -= amount;
+        int hitsNeeded = Mathf.Max(1, hitsPerHeart);
+        damageTowardNextHeart += Mathf.Max(1, amount);
         invulnerabilityTimer = invulnerabilityTime;
+
+        while (damageTowardNextHeart >= hitsNeeded && currentHealth > 0)
+        {
+            damageTowardNextHeart -= hitsNeeded;
+            currentHealth--;
+        }
 
         if (currentHealth <= 0)
             Die();
@@ -100,6 +116,7 @@ public class PlayerHealth : MonoBehaviour
     public void Heal(int amount)
     {
         currentHealth = Mathf.Min(currentHealth + amount, maxHealth);
+        damageTowardNextHeart = 0;
     }
 
     public void SetRespawnPoint(Vector3 position)
@@ -116,6 +133,7 @@ public class PlayerHealth : MonoBehaviour
         }
 
         currentHealth = maxHealth;
+        damageTowardNextHeart = 0;
         isDead = false;
         invulnerabilityTimer = respawnInvulnerabilityTime;
         transform.position = respawnPosition;
@@ -132,10 +150,14 @@ public class PlayerHealth : MonoBehaviour
     {
         if (isDead || isGameOver) return;
 
-        remainingLives--;
         currentHealth = 0;
+        damageTowardNextHeart = 0;
         isDead = true;
         deathTimer = deathReloadDelay;
+        if (gameOverWhenHealthDepleted)
+            remainingLives = 0;
+        else
+            remainingLives--;
 
         if (rb != null)
             rb.linearVelocity = Vector2.zero;
@@ -155,7 +177,7 @@ public class PlayerHealth : MonoBehaviour
 
     private void RestartScene()
     {
-        remainingLives = maxLives;
+        ResetPersistentLives();
         Scene activeScene = SceneManager.GetActiveScene();
         if (activeScene.buildIndex >= 0)
             SceneManager.LoadScene(activeScene.buildIndex);

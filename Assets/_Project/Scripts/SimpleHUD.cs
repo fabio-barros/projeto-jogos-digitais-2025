@@ -24,6 +24,9 @@ public class SimpleHUD : MonoBehaviour
     private static Sprite fallbackHeartSprite;
     private GameObject startMenuPanel;
     private GameObject finishMenuPanel;
+    private GameObject pauseMenuPanel;
+    private Text objectiveText;
+    private Text objectiveMessageText;
     private Text finishStatsText;
 
     private void Awake()
@@ -83,14 +86,19 @@ public class SimpleHUD : MonoBehaviour
 
     private void Update()
     {
-        if (playerHealth != null && healthText != null)
+        if (playerHealth != null)
         {
-            healthText.gameObject.SetActive(false);
-            SetFill(healthFill, playerHealth.CurrentHealth, playerHealth.MaxHealth);
-            SetFill(livesFill, playerHealth.CurrentLives, playerHealth.MaxLives);
-            UpdateHealthHearts();
+            if (healthText != null)
+                healthText.gameObject.SetActive(false);
+
             UpdateLifeHearts();
         }
+
+        if (healthFill != null)
+            healthFill.gameObject.SetActive(false);
+
+        if (livesFill != null)
+            livesFill.gameObject.SetActive(false);
 
         if (playerHealth != null && livesText != null)
             livesText.gameObject.SetActive(false);
@@ -130,8 +138,12 @@ public class SimpleHUD : MonoBehaviour
         if (livesText != null)
             livesText.gameObject.SetActive(false);
 
-        int maxLives = playerHealth != null ? Mathf.Max(playerHealth.MaxLives, 1) : 3;
-        if (lifeHeartImages != null && lifeHeartImages.Length == maxLives)
+        Transform healthRow = transform.Find("HealthHearts_Runtime");
+        if (healthRow != null)
+            Destroy(healthRow.gameObject);
+
+        int maxHealth = playerHealth != null ? Mathf.Max(playerHealth.MaxHealth, 1) : 3;
+        if (lifeHeartImages != null && lifeHeartImages.Length == maxHealth)
             return;
 
         Transform existing = transform.Find("LifeHearts_Runtime");
@@ -146,11 +158,11 @@ public class SimpleHUD : MonoBehaviour
         rect.anchorMax = new Vector2(0f, 1f);
         rect.pivot = new Vector2(0f, 1f);
         rect.anchoredPosition = new Vector2(24f, -78f);
-        rect.sizeDelta = new Vector2(maxLives * 30f, 28f);
+        rect.sizeDelta = new Vector2(maxHealth * 30f, 28f);
 
         Sprite sprite = GetLifeHeartSprite();
-        lifeHeartImages = new Image[maxLives];
-        for (int i = 0; i < maxLives; i++)
+        lifeHeartImages = new Image[maxHealth];
+        for (int i = 0; i < maxHealth; i++)
         {
             GameObject heart = new GameObject("LifeHeart_" + (i + 1));
             heart.transform.SetParent(container.transform, false);
@@ -173,45 +185,10 @@ public class SimpleHUD : MonoBehaviour
 
     private void EnsureHealthHearts()
     {
-        int maxHealth = playerHealth != null ? Mathf.Max(playerHealth.MaxHealth, 1) : 3;
-        if (healthHeartImages != null && healthHeartImages.Length == maxHealth)
-            return;
-
         Transform existing = transform.Find("HealthHearts_Runtime");
         if (existing != null)
             Destroy(existing.gameObject);
-
-        GameObject container = new GameObject("HealthHearts_Runtime");
-        container.transform.SetParent(transform, false);
-
-        RectTransform rect = container.AddComponent<RectTransform>();
-        rect.anchorMin = new Vector2(0f, 1f);
-        rect.anchorMax = new Vector2(0f, 1f);
-        rect.pivot = new Vector2(0f, 1f);
-        rect.anchoredPosition = new Vector2(24f, -42f);
-        rect.sizeDelta = new Vector2(maxHealth * 30f, 28f);
-
-        Sprite sprite = GetLifeHeartSprite();
-        healthHeartImages = new Image[maxHealth];
-        for (int i = 0; i < maxHealth; i++)
-        {
-            GameObject heart = new GameObject("HealthHeart_" + (i + 1));
-            heart.transform.SetParent(container.transform, false);
-
-            RectTransform heartRect = heart.AddComponent<RectTransform>();
-            heartRect.anchorMin = new Vector2(0f, 0.5f);
-            heartRect.anchorMax = new Vector2(0f, 0.5f);
-            heartRect.pivot = new Vector2(0f, 0.5f);
-            heartRect.anchoredPosition = new Vector2(i * 30f, 0f);
-            heartRect.sizeDelta = new Vector2(24f, 24f);
-
-            Image image = heart.AddComponent<Image>();
-            image.sprite = sprite;
-            image.preserveAspect = true;
-            healthHeartImages[i] = image;
-        }
-
-        UpdateHealthHearts();
+        healthHeartImages = null;
     }
 
     private void UpdateHealthHearts()
@@ -246,9 +223,9 @@ public class SimpleHUD : MonoBehaviour
             if (lifeHeartImages[i] == null)
                 continue;
 
-            lifeHeartImages[i].color = i < playerHealth.CurrentLives
-                ? Color.white
-                : new Color(0.25f, 0.25f, 0.25f, 0.45f);
+            lifeHeartImages[i].color = i < playerHealth.CurrentHealth
+                ? new Color(1f, 0.1f, 0.18f, 1f)
+                : new Color(0.22f, 0.05f, 0.06f, 0.45f);
         }
     }
 
@@ -325,6 +302,15 @@ public class SimpleHUD : MonoBehaviour
 
         EnsureHealthHearts();
         EnsureLifeHearts();
+
+        if (objectiveText == null)
+            objectiveText = CreateText("ObjectiveText_Runtime", transform, "POW: 0/5", new Vector2(24f, -110f), TextAnchor.UpperLeft, 15);
+
+        if (objectiveMessageText == null)
+        {
+            objectiveMessageText = CreateText("ObjectiveMessage_Runtime", transform, "", new Vector2(0f, -188f), TextAnchor.UpperCenter, 18);
+            objectiveMessageText.gameObject.SetActive(false);
+        }
     }
 
     private void EnsureGameOverPanel()
@@ -353,5 +339,149 @@ public class SimpleHUD : MonoBehaviour
             AddPanelAccent(startMenuPanel.transform, new Color(0.05f, 1f, 0.95f, 0.95f), true);
             Text title = CreateText("StartTitle_Runtime", startMenuPanel.transform, "REMNANT SQUAD", new Vector2(0f, 58f), TextAnchor.MiddleCenter, 38);
             title.color = new Color(1f, 0.9f, 0.2f, 1f);
-            CreateText("StartBody_Runtime", startMenuPanel.transform, "Level 1 - Ashline Outpost\nPress Enter / Start / Click", new Vector2(0f, -34f), TextAnchor.MiddleCenter, 24);
+            CreateText("StartBody_Runtime", startMenuPanel.transform, "Objective: rescue 5 POWs, then extract\nPress Enter / Start / Click", new Vector2(0f, -34f), TextAnchor.MiddleCenter, 22);
             startMenuPanel.transform.SetAsLastSibling();
+        }
+
+        if (pauseMenuPanel == null)
+        {
+            pauseMenuPanel = CreatePanel("PauseMenuPanel_Runtime", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(500f, 206f), new Color(0.015f, 0.018f, 0.028f, 0.92f));
+            AddPanelAccent(pauseMenuPanel.transform, new Color(1f, 0.86f, 0.12f, 0.95f), true);
+            Text title = CreateText("PauseTitle_Runtime", pauseMenuPanel.transform, "PAUSED", new Vector2(0f, 48f), TextAnchor.MiddleCenter, 38);
+            title.color = new Color(1f, 0.9f, 0.2f, 1f);
+            CreateText("PauseBody_Runtime", pauseMenuPanel.transform, "Esc to resume\nEnter / Start to restart", new Vector2(0f, -38f), TextAnchor.MiddleCenter, 22);
+            pauseMenuPanel.transform.SetAsLastSibling();
+            pauseMenuPanel.SetActive(false);
+        }
+
+        if (finishMenuPanel == null)
+        {
+            finishMenuPanel = CreatePanel("FinishMenuPanel_Runtime", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(560f, 250f), new Color(0.015f, 0.018f, 0.028f, 0.92f));
+            AddPanelAccent(finishMenuPanel.transform, new Color(0.1f, 1f, 0.25f, 0.95f), true);
+            Text title = CreateText("FinishTitle_Runtime", finishMenuPanel.transform, "MISSION COMPLETE", new Vector2(0f, 62f), TextAnchor.MiddleCenter, 36);
+            title.color = new Color(0.2f, 1f, 0.35f, 1f);
+            finishStatsText = CreateText("FinishStats_Runtime", finishMenuPanel.transform, "Score: 0\nCoins: 0", new Vector2(0f, -12f), TextAnchor.MiddleCenter, 24);
+            CreateText("FinishRestart_Runtime", finishMenuPanel.transform, "Press Enter / Start to replay demo", new Vector2(0f, -84f), TextAnchor.MiddleCenter, 18);
+            finishMenuPanel.transform.SetAsLastSibling();
+            finishMenuPanel.SetActive(false);
+        }
+    }
+
+    private void UpdateGameplayMenus()
+    {
+        GameManager manager = GameManager.Instance;
+        bool waitingToStart = manager != null && manager.IsWaitingToStart;
+        bool paused = manager != null && manager.IsPaused;
+        bool levelComplete = manager != null && manager.IsLevelComplete;
+        bool gameOver = playerHealth != null && playerHealth.IsGameOver && !levelComplete;
+
+        if (startMenuPanel != null)
+            startMenuPanel.SetActive(waitingToStart);
+
+        if (finishMenuPanel != null)
+            finishMenuPanel.SetActive(levelComplete);
+
+        if (pauseMenuPanel != null)
+            pauseMenuPanel.SetActive(paused && !waitingToStart && !levelComplete && !gameOver);
+
+        if (finishStatsText != null && manager != null)
+            finishStatsText.text = "Score: " + manager.Score + "\nCoins: " + manager.CoinsCollected + "\nPOW: " + manager.RescuedPOWs + "/" + manager.requiredRescues;
+
+        if (objectiveText != null && manager != null)
+            objectiveText.text = "POW: " + manager.RescuedPOWs + "/" + manager.requiredRescues;
+
+        if (objectiveMessageText != null && manager != null)
+        {
+            bool showMessage = manager.ObjectiveMessageTimer > 0f && !string.IsNullOrEmpty(manager.ObjectiveMessage);
+            objectiveMessageText.gameObject.SetActive(showMessage);
+            objectiveMessageText.text = showMessage ? manager.ObjectiveMessage : string.Empty;
+        }
+
+        if (gameOverText != null)
+            SetGameOverVisible(gameOver);
+    }
+
+    private void SetGameOverVisible(bool visible)
+    {
+        Transform panel = gameOverText.transform.parent;
+        if (panel != null && panel != transform)
+        {
+            panel.gameObject.SetActive(visible);
+            return;
+        }
+
+        gameOverText.gameObject.SetActive(visible);
+    }
+
+    private GameObject CreatePanel(string name, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 anchoredPosition, Vector2 size, Color color)
+    {
+        GameObject panel = new GameObject(name);
+        panel.transform.SetParent(transform, false);
+
+        RectTransform rect = panel.AddComponent<RectTransform>();
+        rect.anchorMin = anchorMin;
+        rect.anchorMax = anchorMax;
+        rect.pivot = pivot;
+        rect.anchoredPosition = anchoredPosition;
+        rect.sizeDelta = size;
+
+        Image image = panel.AddComponent<Image>();
+        image.color = color;
+
+        return panel;
+    }
+
+    private void AddPanelAccent(Transform parent, Color color, bool left)
+    {
+        GameObject accent = new GameObject("Accent");
+        accent.transform.SetParent(parent, false);
+        RectTransform rect = accent.AddComponent<RectTransform>();
+        rect.anchorMin = left ? new Vector2(0f, 0f) : new Vector2(0f, 1f);
+        rect.anchorMax = left ? new Vector2(0f, 1f) : new Vector2(1f, 1f);
+        rect.pivot = left ? new Vector2(0f, 0.5f) : new Vector2(0.5f, 1f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = left ? new Vector2(4f, 0f) : new Vector2(0f, 4f);
+        accent.AddComponent<Image>().color = color;
+    }
+
+    private Text CreateText(string name, Transform parent, string value, Vector2 anchoredPosition, TextAnchor alignment, int size)
+    {
+        GameObject textObject = new GameObject(name);
+        textObject.transform.SetParent(parent, false);
+
+        RectTransform rect = textObject.AddComponent<RectTransform>();
+        rect.anchorMin = alignment == TextAnchor.UpperCenter ? new Vector2(0.5f, 1f) : new Vector2(0f, 1f);
+        rect.anchorMax = alignment == TextAnchor.UpperCenter ? new Vector2(0.5f, 1f) : new Vector2(0f, 1f);
+        rect.pivot = alignment == TextAnchor.UpperCenter ? new Vector2(0.5f, 1f) : new Vector2(0f, 1f);
+        rect.anchoredPosition = anchoredPosition;
+        rect.sizeDelta = alignment == TextAnchor.UpperCenter ? new Vector2(340f, 32f) : new Vector2(350f, 26f);
+
+        if (alignment == TextAnchor.MiddleCenter)
+        {
+            rect.anchorMin = new Vector2(0.5f, 0.5f);
+            rect.anchorMax = new Vector2(0.5f, 0.5f);
+            rect.pivot = new Vector2(0.5f, 0.5f);
+            rect.sizeDelta = new Vector2(460f, 160f);
+        }
+
+        Text text = textObject.AddComponent<Text>();
+        text.text = value;
+        text.font = hudFont;
+        text.fontSize = size;
+        text.alignment = alignment;
+        text.color = Color.white;
+        return text;
+    }
+
+    private Text FindText(string name)
+    {
+        Text[] texts = GetComponentsInChildren<Text>(true);
+        for (int i = 0; i < texts.Length; i++)
+        {
+            if (texts[i].name == name)
+                return texts[i];
+        }
+
+        return null;
+    }
+}
